@@ -2,6 +2,7 @@
 
 A Chrome extension that pulls your USPSA match results from PractiScore and displays them as interactive charts — score over time, placement, and per-stage breakdowns — all inside your browser, with no server or API key required.
 
+![Alt text](/screenshots/PScharts.png?raw=true "PScharts Screenshot")
 ---
 
 ## Features
