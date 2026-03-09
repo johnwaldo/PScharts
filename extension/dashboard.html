@@ -284,11 +284,11 @@
     .stage-table td:first-child { text-align: left; color: #ccc; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .stage-table tr:hover td { background: #1a1d27; }
     .col-a  { color: #4caf50; }
-    .col-c  { color: #ff9800; }
-    .col-d  { color: #e91e63; }
+    .col-c  { color: #fdd835; }
+    .col-d  { color: #ff9800; }
     .col-m  { color: #f44336; font-weight: 600; }
-    .col-ns { color: #9c27b0; }
-    .col-p  { color: #ff5722; }
+    .col-ns { color: #f44336; font-weight: 600; }
+    .col-p  { color: #f44336; }
 
     /* ── Tooltip stage list ── */
     #tooltip .tt-stages {
@@ -358,6 +358,47 @@
 
     a { color: #4a9eff; text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    /* ── Update banner ── */
+    #updateBanner {
+      display: none;
+      margin: 0 24px 8px;
+      padding: 10px 14px;
+      background: rgba(74,158,255,0.08);
+      border: 1px solid rgba(74,158,255,0.35);
+      border-radius: 6px;
+      color: #4a9eff;
+      font-size: 12px;
+      line-height: 1.5;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #updateBanner.visible { display: flex; }
+    #updateBanner a { color: #4a9eff; font-weight: 600; }
+    #updateNotesToggle {
+      background: none;
+      border: 1px solid rgba(74,158,255,0.35);
+      border-radius: 4px;
+      color: #4a9eff;
+      font-size: 11px;
+      padding: 2px 8px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #updateNotesToggle:hover { background: rgba(74,158,255,0.08); }
+    #updateBannerNotes {
+      display: none;
+      width: 100%;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(74,158,255,0.2);
+      font-size: 11px;
+      color: #8a9bb0;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    #updateBannerNotes.open { display: block; }
 
     /* ── No-member-number warning ── */
     #noMemberWarning {
@@ -432,6 +473,12 @@
 </div>
 
 <div id="status">Enter your USPSA member number (recommended) and/or name, then click Fetch Scores.</div>
+
+<div id="updateBanner">
+  <span id="updateBannerText"></span>
+  <button id="updateNotesToggle">Release notes ▾</button>
+  <div id="updateBannerNotes"></div>
+</div>
 
 <div id="noMemberWarning">
   No USPSA member number entered — scores will be matched by name only and shown under "All Matches" view.
