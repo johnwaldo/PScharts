@@ -10,6 +10,9 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 - **Placement chart** — finish position at each match
 - **Per-stage breakdown** — expand any match row to see hits, HF, and percentage for every stage
 - **Division-aware** — automatically detects which division you shot in each match and shows division-specific results
+- **Match type detection** — identifies USPSA, IDPA, IPSC, Steel Challenge, 3-Gun, PCSL, ICORE matches; non-USPSA matches are shown in history but excluded from charts
+- **Filter matches** — checkboxes let you include or exclude individual matches from your charts without deleting them
+- **Delete matches** — permanently remove a match from history and cache via the delete button on each row
 - **Local caching** — match data is cached in browser storage; individual matches can be refreshed on demand
 - **No external server** — everything runs locally in your browser using your existing PractiScore login session
 
@@ -28,17 +31,17 @@ Chrome does not allow side-loading extensions from a zip file directly, so you l
 
 ### 1 — Download the extension
 
-**Option A — Clone the repo**
+**Option A — Download a release (recommended)**
+
+1. Go to the [Releases page](https://github.com/lexxrexx/PScharts/releases)
+2. Download the latest `pscharts.zip`
+3. Unzip the archive anywhere on your computer
+
+**Option B — Clone the repo**
 
 ```bash
-git clone https://github.com/<your-username>/pscharts.git
+git clone https://github.com/lexxrexx/PScharts.git
 ```
-
-**Option B — Download ZIP**
-
-1. Click the green **Code** button on the GitHub page
-2. Choose **Download ZIP**
-3. Unzip the archive anywhere on your computer
 
 ### 2 — Open Chrome Extensions
 
@@ -53,7 +56,7 @@ In the top-right corner of the Extensions page, toggle on **Developer mode**.
 ### 4 — Load the extension
 
 1. Click **Load unpacked**
-2. Navigate to the `extension/` folder inside the project you downloaded (the folder that contains `manifest.json`)
+2. Navigate to the unzipped folder — if you used Option A (release ZIP), select the top-level unzipped folder; if you used Option B (cloned repo), select the `extension/` subfolder (the one containing `manifest.json`)
 3. Click **Select Folder**
 
 The PScharts icon will appear in your Chrome toolbar. Pin it for easy access via the puzzle-piece menu.
@@ -66,19 +69,27 @@ The PScharts icon will appear in your Chrome toolbar. Pin it for easy access via
 
 2. **Open PScharts** — click the PScharts icon in the toolbar. The dashboard opens in a new tab.
 
-3. **Enter your member number** — type your USPSA member number (e.g. `A12345`) in the input field. Optionally add your name as it appears on result sheets (e.g. `Smith, Jane`) as a fallback for matches where the member number lookup fails.
+3. **Enter your member number and/or name** — type your USPSA member number (e.g. `A12345`) and/or your name as it appears on result sheets (e.g. `Smith, Jane`). At least one is required; providing both improves match accuracy. A warning banner appears if the member number is missing.
 
 4. **Click Fetch Scores** — the extension navigates to your PractiScore history, opens each match's results page, selects your division, and records your score. Progress is shown in the status bar.
 
-5. **Explore your data** — the summary bar shows matches found, average %, and best %. Toggle between **Scored Only** and **All Matches** views. Click any match row to expand per-stage details.
+5. **Explore your data** — the summary bar shows matches found, average %, and best %. Toggle between **Ranked** (member number lookup) and **All** (any scored result) views. Click any match row to expand per-stage details.
+
+### Filtering matches
+
+Each match row has a checkbox. Uncheck a match to exclude it from the charts without deleting it. Checkboxes are disabled for non-USPSA matches (IDPA, IPSC, etc.), which are always excluded.
 
 ### Refreshing a single match
 
 Each match row has a refresh button (↻). Click it to re-fetch just that match without re-scraping your entire history.
 
-### Clearing data
+### Deleting a match
 
-Use the **⚠ Clear All Data** button in the header (developer utility) to wipe all cached scores from browser storage and start fresh.
+Click the delete button (✕) on a match row to permanently remove it from history and cache.
+
+### Clearing all data
+
+Use the **⚠ Clear All Data** button in the header to wipe all cached scores from browser storage and start fresh.
 
 ---
 
