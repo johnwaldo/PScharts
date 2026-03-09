@@ -30,6 +30,8 @@ const tooltipEl    = document.getElementById('tooltip');
 let allResults       = [];
 let currentView      = 'ranked'; // 'ranked' | 'all'
 let deselectedMatches = new Set(); // match IDs manually excluded from charts
+let selectedDiv      = null;     // division filter for stats + charts (null = All)
+let selectedYear     = null;     // year filter for charts (null = All Time)
 
 const NON_USPSA_TYPES = new Set(['IDPA', 'IPSC', 'Steel Challenge', '3-Gun', 'PCSL', 'ICORE', 'SCSA']);
 function isLikelyUSPSA(matchType) { return !NON_USPSA_TYPES.has(matchType); }
@@ -226,6 +228,43 @@ fetchBtn.addEventListener('click', async () => {
   }
 });
 
+// ── Year filter pills ─────────────────────────────────────────────────────────
+function renderYearFilter(years) {
+  const el = document.getElementById('timeFilter');
+  el.innerHTML = '';
+  if (years.length === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+
+  const pill = document.createElement('button');
+  pill.className = 'time-btn' + (selectedYear ? ' active' : '');
+  pill.textContent = selectedYear || 'All Time';
+  pill.onclick = (e) => {
+    e.stopPropagation();
+    const existing = el.querySelector('.div-dropdown');
+    if (existing) { existing.remove(); return; }
+    const dropdown = document.createElement('div');
+    dropdown.className = 'div-dropdown';
+    ['All Time', ...years].forEach(y => {
+      const item = document.createElement('div');
+      item.className = 'div-dropdown-item' + ((y === 'All Time' && !selectedYear) || y === selectedYear ? ' selected' : '');
+      item.textContent = y;
+      item.onclick = (ev) => {
+        ev.stopPropagation();
+        selectedYear = y === 'All Time' ? null : y;
+        dropdown.remove();
+        renderAll();
+      };
+      dropdown.appendChild(item);
+    });
+    el.appendChild(dropdown);
+    setTimeout(() => document.addEventListener('click', function close() {
+      dropdown.remove();
+      document.removeEventListener('click', close);
+    }, { once: true }), 0);
+  };
+  el.appendChild(pill);
+}
+
 // ── Render charts + stats ─────────────────────────────────────────────────────
 function renderAll() {
   if (!allResults.length) return;
@@ -267,19 +306,71 @@ function renderAll() {
     return;
   }
 
-  const avg  = sorted.reduce((s, r) => s + (r.overall_pct ?? 0), 0) / sorted.length;
-  const best = Math.max(...sorted.map(r => r.overall_pct ?? 0));
   const divs = [...new Set(sorted.map(r => r.division).filter(Boolean))];
+
+  // Validate selectedDiv / selectedYear against current data
+  if (selectedDiv && !divs.includes(selectedDiv)) selectedDiv = null;
+  const years = [...new Set(sorted.map(r => r.date?.slice(0, 4)).filter(Boolean))].sort();
+  if (selectedYear && !years.includes(selectedYear)) selectedYear = null;
+
+  // Filter to selected division + year for stats + charts
+  const viewSorted = sorted.filter(r =>
+    (!selectedDiv || (r.division || 'Unknown') === selectedDiv) &&
+    (!selectedYear || r.date?.startsWith(selectedYear))
+  );
+
+  const avg  = viewSorted.reduce((s, r) => s + (r.overall_pct ?? 0), 0) / (viewSorted.length || 1);
+  const best = viewSorted.length ? Math.max(...viewSorted.map(r => r.overall_pct ?? 0)) : 0;
 
   const avgBand  = CLASS_BANDS.find(b => avg  >= b.min && avg  < b.max);
   const bestBand = CLASS_BANDS.find(b => best >= b.min && best < b.max);
 
-  document.getElementById('statMatches').textContent = sorted.length;
+  document.getElementById('statMatches').textContent = viewSorted.length;
   document.getElementById('statAvg').textContent     = avg.toFixed(1) + '%';
   document.getElementById('statAvg').style.color     = avgBand?.text.replace('0.55','1') || '#4a9eff';
   document.getElementById('statBest').textContent    = best.toFixed(1) + '%';
   document.getElementById('statBest').style.color    = bestBand?.text.replace('0.55','1') || '#4a9eff';
-  document.getElementById('statDiv').textContent     = divs[0] || '—';
+
+  // Division stat box — opens a dropdown
+  const divStatBox = document.getElementById('statDiv').closest('.stat-box');
+  const divStatVal = document.getElementById('statDiv');
+  if (divs.length > 0) {
+    divStatBox.classList.add('clickable');
+    divStatBox.classList.toggle('active-filter', !!selectedDiv);
+    divStatVal.textContent = selectedDiv || (divs.length === 1 ? divs[0] : 'All');
+    divStatBox.onclick = (e) => {
+      e.stopPropagation();
+      const existing = divStatBox.querySelector('.div-dropdown');
+      if (existing) { existing.remove(); return; }
+      const dropdown = document.createElement('div');
+      dropdown.className = 'div-dropdown';
+      const options = divs.length > 1 ? ['All', ...divs] : divs;
+      options.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'div-dropdown-item' + ((d === 'All' && !selectedDiv) || d === selectedDiv ? ' selected' : '');
+        item.textContent = d;
+        item.onclick = (ev) => {
+          ev.stopPropagation();
+          selectedDiv = d === 'All' ? null : d;
+          dropdown.remove();
+          renderAll();
+        };
+        dropdown.appendChild(item);
+      });
+      divStatBox.appendChild(dropdown);
+      setTimeout(() => document.addEventListener('click', function close() {
+        dropdown.remove();
+        document.removeEventListener('click', close);
+      }, { once: true }), 0);
+    };
+  } else {
+    divStatBox.classList.remove('clickable', 'active-filter');
+    divStatBox.onclick = null;
+    divStatVal.textContent = '—';
+  }
+
+  // Year filter pills
+  renderYearFilter(years);
 
   const avgLbl = document.querySelector('#statMatches')?.closest('#stats')
     ?.querySelectorAll('.stat-box')[1]?.querySelector('.lbl');
@@ -287,16 +378,16 @@ function renderAll() {
 
   const DIV_PALETTE = ['#4a9eff','#4caf50','#ff9800','#e91e63','#9c27b0','#00bcd4','#ffeb3b'];
 
-  // Group sorted results by division
+  // Group viewSorted results by division
   const byDiv = {};
-  sorted.forEach(r => {
+  viewSorted.forEach(r => {
     const key = r.division || 'Unknown';
     if (!byDiv[key]) byDiv[key] = [];
     byDiv[key].push(r);
   });
 
   // All unique dates for shared X axis
-  const allDates = [...new Set(sorted.map(r => r.date))].sort();
+  const allDates = [...new Set(viewSorted.map(r => r.date))].sort();
 
   const scoreSeries = Object.entries(byDiv).map(([div, matches], i) => ({
     label: div,

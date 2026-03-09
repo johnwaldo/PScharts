@@ -121,9 +121,33 @@
       border-radius: 10px;
       padding: 14px 16px;
       text-align: center;
+      position: relative;
     }
     .stat-box .val { font-size: 22px; font-weight: 700; color: #4a9eff; }
     .stat-box .lbl { font-size: 10px; color: #666; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box.clickable { cursor: pointer; user-select: none; }
+    .stat-box.clickable:hover { border-color: #4a9eff; background: #1e2235; }
+    .stat-box.active-filter { border-color: #4a9eff; }
+    .div-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0;
+      min-width: 100%; background: #1a1d27;
+      border: 1px solid #3a3d4a; border-radius: 8px;
+      overflow: hidden; z-index: 200;
+    }
+    .div-dropdown-item { padding: 8px 16px; cursor: pointer; font-size: 13px; white-space: nowrap; color: #ccc; }
+    .div-dropdown-item:hover { background: #2a2d3a; }
+    .div-dropdown-item.selected { color: #4a9eff; }
+    #timeFilter {
+      display: none; gap: 6px; padding: 0 24px 14px; flex-wrap: wrap;
+      position: relative;
+    }
+    .time-btn {
+      padding: 4px 12px; border-radius: 6px; font-size: 12px;
+      border: 1px solid #2a2d3a; background: #1a1d27; color: #888;
+      cursor: pointer; user-select: none;
+    }
+    .time-btn:hover { border-color: #4a9eff; color: #ccc; }
+    .time-btn.active { background: #1e3a5f; border-color: #4a9eff; color: #4a9eff; }
 
     #viewToggle { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
     .view-btn {
@@ -432,6 +456,8 @@
     <button class="view-btn"        data-view="all">All Matches</button>
   </div>
 </div>
+
+<div id="timeFilter"></div>
 
 <div id="charts">
   <div class="chart-section">
