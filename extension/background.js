@@ -1,0 +1,662 @@
+// background.js — service worker
+
+const PS_BASE = 'https://practiscore.com';
+
+// ── Open dashboard tab (or focus if already open) ─────────────────────────────
+chrome.action.onClicked.addListener(async () => {
+  const dashUrl = chrome.runtime.getURL('dashboard.html');
+  const existing = await chrome.tabs.query({ url: dashUrl });
+  if (existing.length > 0) {
+    await chrome.tabs.update(existing[0].id, { active: true });
+    await chrome.windows.update(existing[0].windowId, { focused: true });
+  } else {
+    chrome.tabs.create({ url: dashUrl });
+  }
+});
+
+// ── Message handler ───────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === 'fetchScores') {
+    fetchScores(msg.memberNumber, msg.name)
+      .then(data  => sendResponse({ ok: true,  data }))
+      .catch(err  => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+  if (msg.action === 'refreshMatch') {
+    refreshMatch(msg.match, msg.memberNumber, msg.name)
+      .then(data  => sendResponse({ ok: true,  data }))
+      .catch(err  => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+});
+
+// ── Cache helpers ─────────────────────────────────────────────────────────────
+async function getCache() {
+  const d = await chrome.storage.local.get('matchCache');
+  return d.matchCache || {};
+}
+
+async function updateMatchCache(matchId, scoreData) {
+  const cache = await getCache();
+  cache[matchId] = { ...scoreData, fetched_at: Date.now() };
+  await chrome.storage.local.set({ matchCache: cache });
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Map the Div abbreviation shown in the results table to the PractiScore URL key.
+// e.g. "CO" → "carryoptics", "L" → "limited"
+function divisionToUrlKey(div) {
+  const map = {
+    CO:  'carryoptics',
+    L:   'limited',
+    LO:  'limitedoptics',
+    O:   'open',
+    PCC: 'pcc',
+    REV: 'revolver',
+    SS:  'singlestack',
+    P:   'production',
+  };
+  const key = (div || '').trim().toUpperCase();
+  return map[key] || key.toLowerCase().replace(/[\s\-]+/g, '');
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise(resolve => {
+    const h = (id, info) => {
+      if (id === tabId && info.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(h);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(h);
+  });
+}
+
+async function runInTab(tabId, fn, args = []) {
+  const res = await chrome.scripting.executeScript({ target: { tabId }, func: fn, args });
+  return res[0].result;
+}
+
+function buildResult(match, score, memberNumber) {
+  return {
+    match_id:    match.match_id,
+    match_name:  match.match_name,
+    date:        match.date,
+    division:    score.division    || '',
+    class_:      score.class_      || '',
+    overall_pct: score.overall_pct ?? null,
+    div_pct:     score.div_pct     ?? null,
+    hf:          score.hf          ?? null,
+    place:       score.place       ?? null,
+    div_place:   score.div_place   ?? null,
+    div_total:   score.div_total   ?? null,
+    total:       score.total       ?? null,
+    found_by:    score.found_by    || null,
+    stages:      score.stages      || null,
+    cached_for:  (memberNumber || '').toUpperCase() || null,
+    fetched_at:  Date.now(),
+  };
+}
+
+// ── results/new/{matchId} scraper — injected into tab ─────────────────────────
+// Reads the dynamically-rendered table in #mainResultsDiv plus the dropdown
+// options for #resultLevel and #divisionLevel.
+function getResultsNewState(mem, nm) {
+  const isCF = /challenge|security|just a moment/i.test(document.title) ||
+               !!document.querySelector('#cf-challenge-running, #challenge-form');
+  if (isCF) return { _cf: true };
+
+  // Spinner still visible → still loading
+  const spinner = document.querySelector('#spinner');
+  if (spinner && getComputedStyle(spinner).display !== 'none') {
+    return { _loading: true, _debug: 'spinner visible' };
+  }
+
+  const mainDiv = document.querySelector('#mainResultsDiv');
+  const tables  = mainDiv ? Array.from(mainDiv.querySelectorAll('table')) : [];
+  if (!tables.length) {
+    const txt = (mainDiv?.textContent || '').trim().substring(0, 80).replace(/\s+/g, ' ');
+    return { _loading: true, _debug: 'no table — ' + txt };
+  }
+
+  // Read dropdown options (may still be empty on first paint)
+  const readSelect = id => Array.from(document.getElementById(id)?.options || [])
+    .map(o => ({ value: o.value, text: o.textContent.trim() }))
+    .filter(o => o.text);
+
+  const divisionOptions    = readSelect('divisionLevel');
+  const resultLevelOptions = readSelect('resultLevel');
+
+  // Largest table = results table
+  const table = tables.sort(
+    (a, b) => b.querySelectorAll('tr').length - a.querySelectorAll('tr').length
+  )[0];
+
+  // Headers
+  let thEls = Array.from(table.querySelectorAll('thead th, thead td'));
+  if (!thEls.length) {
+    const first = table.querySelector('tr');
+    if (first) thEls = Array.from(first.querySelectorAll('th, td'));
+  }
+  const ths = thEls.map(th => th.textContent.trim().toLowerCase());
+
+  const hi = {
+    place: ths.findIndex(h => /^(place|#|rank|no\.?)$/.test(h)),
+    mem:   ths.findIndex(h => /mem/.test(h)),
+    div:   ths.findIndex(h => /^div/.test(h)),
+    cls:   ths.findIndex(h => /^class$/.test(h)),
+    pct:   ths.findIndex(h => /^(%|pct|percent|match\s*%|stage\s*%)$/.test(h)),
+    hf:    ths.findIndex(h => /^(hf|hit\s*factor)$/.test(h)),
+    time:  ths.findIndex(h => /^time$/.test(h)),
+    a:     ths.findIndex(h => h === 'a'),
+    c:     ths.findIndex(h => h === 'c'),
+    d:     ths.findIndex(h => h === 'd'),
+    m:     ths.findIndex(h => h === 'm'),
+    ns:    ths.findIndex(h => h === 'ns' || h === 'n/s' || h === 'ns/m'),
+    p:     ths.findIndex(h => h === 'p' || h === 'proc' || h === 'pen'),
+  };
+
+  let rows = Array.from(table.querySelectorAll('tbody tr'));
+  if (!rows.length) rows = Array.from(table.querySelectorAll('tr')).slice(1);
+  const total = rows.length;
+
+  function parseRow(row) {
+    const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+    const out   = { total };
+    if (hi.div  >= 0) out.division = cells[hi.div] || '';
+    if (hi.cls  >= 0) out.class_   = cells[hi.cls] || '';
+    if (hi.hf   >= 0) out.hf       = parseFloat(cells[hi.hf])   || null;
+    if (hi.time >= 0) out.time     = parseFloat(cells[hi.time])  || null;
+    if (hi.a    >= 0) out.a        = parseInt(cells[hi.a])   || 0;
+    if (hi.c    >= 0) out.c        = parseInt(cells[hi.c])   || 0;
+    if (hi.d    >= 0) out.d        = parseInt(cells[hi.d])   || 0;
+    if (hi.m    >= 0) out.m        = parseInt(cells[hi.m])   || 0;
+    if (hi.ns   >= 0) out.ns       = parseInt(cells[hi.ns])  || 0;
+    if (hi.p    >= 0) out.p        = parseInt(cells[hi.p])   || 0;
+
+    if (hi.place >= 0) out.place = parseInt(cells[hi.place]) || null;
+    if (!out.place && cells.length) {
+      const pm = cells[0].match(/^(\d+)/);
+      if (pm) out.place = parseInt(pm[1]);
+    }
+    if (hi.pct >= 0) out.overall_pct = parseFloat(cells[hi.pct]);
+    if (out.overall_pct == null || isNaN(out.overall_pct)) {
+      for (const c of cells) {
+        const pm = c.match(/^(\d{1,3}\.\d{2,4})\s*%?$/);
+        if (pm) { out.overall_pct = parseFloat(pm[1]); break; }
+      }
+    }
+    return out;
+  }
+
+  // Build name variants for matching
+  const memUp  = (mem || '').toUpperCase();
+  const raw    = (nm || '').trim().toUpperCase();
+  const parts  = raw.split(/[\s,]+/).filter(Boolean);
+  const variants = new Set(raw ? [raw] : []);
+  if (parts.length >= 2) {
+    variants.add(`${parts[parts.length - 1]}, ${parts.slice(0, -1).join(' ')}`);
+    variants.add(`${parts[0]}, ${parts.slice(1).join(' ')}`);
+    variants.add(parts.join(' '));
+  }
+
+  for (const row of rows) {
+    const cells   = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+    const cellsUp = cells.map(c => c.toUpperCase());
+
+    const memMatch  = memUp && (
+      hi.mem >= 0
+        ? (cells[hi.mem] || '').toUpperCase() === memUp
+        : cells.some(c => c.toUpperCase() === memUp)
+    );
+    const nameMatch = variants.size && [...variants].some(v =>
+      cellsUp.some(c => c === v || c.replace(/^\d+[.\-]\s*/, '') === v)
+    );
+
+    if (!memMatch && !nameMatch) continue;
+
+    return {
+      _ready: true, _found: true,
+      found_by: memMatch ? 'member_number' : 'name',
+      divisionOptions,
+      resultLevelOptions,
+      competitorData: parseRow(row),
+      _rowCount: total,
+    };
+  }
+
+  return {
+    _ready: true, _found: false,
+    divisionOptions, resultLevelOptions,
+    _rowCount: total, _headers: ths,
+  };
+}
+
+// Injected helper — sets a <select> value and fires a change event
+function setSelectAndFire(selectId, value) {
+  const el = document.getElementById(selectId);
+  if (!el) return false;
+  el.value = value;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+// ── HTML results page scraper — injected into tab, no external references ─────
+// (kept as fallback for stage data on static pages)
+function scrapeHTMLResultsPage(mem, nm) {
+  const isCF = /challenge|security|just a moment/i.test(document.title) ||
+               !!document.querySelector('#cf-challenge-running, #challenge-form');
+  if (isCF) return { _cf: true };
+
+  // Find largest table on the page
+  const tables = Array.from(document.querySelectorAll('table'));
+  const table = tables.sort((a, b) => b.querySelectorAll('tr').length - a.querySelectorAll('tr').length)[0];
+  if (!table) {
+    const snippet = (document.body?.textContent || '').trim().substring(0, 120).replace(/\s+/g, ' ');
+    return { _loading: true, _debug: 'no table — body: ' + snippet };
+  }
+
+  // Headers: prefer <thead>, fall back to first <tr>
+  let thEls = Array.from(table.querySelectorAll('thead th, thead td'));
+  if (!thEls.length) {
+    const firstTr = table.querySelector('tr');
+    if (firstTr) thEls = Array.from(firstTr.querySelectorAll('th, td'));
+  }
+  if (!thEls.length) return { _loading: true, _debug: 'no headers in table' };
+
+  // Rows: prefer <tbody>, fall back to all <tr> after the first
+  let rows = Array.from(table.querySelectorAll('tbody tr'));
+  if (!rows.length) {
+    const allTrs = Array.from(table.querySelectorAll('tr'));
+    rows = allTrs.slice(1); // skip header row
+  }
+  if (!rows.length) {
+    const hdrs = thEls.map(th => th.textContent.trim()).join(', ');
+    return { _loading: true, _debug: `0 rows — headers: [${hdrs}]` };
+  }
+
+  const ths = thEls.map(th => th.textContent.trim().toLowerCase());
+  const hi = {
+    place: ths.findIndex(h => /^(place|#|rank|no\.?)$/.test(h)),
+    mem:   ths.findIndex(h => /mem/.test(h)),
+    div:   ths.findIndex(h => /^div/.test(h)),
+    cls:   ths.findIndex(h => /^class$/.test(h)),
+    pct:   ths.findIndex(h => /^(%|pct|percent|match\s*%)$/.test(h)),
+    hf:    ths.findIndex(h => /^(hf|hit\s*factor)$/.test(h)),
+    time:  ths.findIndex(h => /^time$/.test(h)),
+    a:     ths.findIndex(h => h === 'a'),
+    c:     ths.findIndex(h => h === 'c'),
+    d:     ths.findIndex(h => h === 'd'),
+    m:     ths.findIndex(h => h === 'm'),
+    ns:    ths.findIndex(h => h === 'ns' || h === 'n/s' || h === 'ns/m'),
+    p:     ths.findIndex(h => h === 'p' || h === 'proc' || h === 'pen'),
+  };
+
+  const total = rows.length;
+
+  function parseRow(row) {
+    const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+    const out = { total };
+    if (hi.div  >= 0) out.division = cells[hi.div] || '';
+    if (hi.cls  >= 0) out.class_   = cells[hi.cls] || '';
+    if (hi.hf   >= 0) out.hf       = parseFloat(cells[hi.hf]) || null;
+    if (hi.time >= 0) out.time     = parseFloat(cells[hi.time]) || null;
+    if (hi.a    >= 0) out.a        = parseInt(cells[hi.a])  || 0;
+    if (hi.c    >= 0) out.c        = parseInt(cells[hi.c])  || 0;
+    if (hi.d    >= 0) out.d        = parseInt(cells[hi.d])  || 0;
+    if (hi.m    >= 0) out.m        = parseInt(cells[hi.m])  || 0;
+    if (hi.ns   >= 0) out.ns       = parseInt(cells[hi.ns]) || 0;
+    if (hi.p    >= 0) out.p        = parseInt(cells[hi.p])  || 0;
+    // Place: dedicated column or leading digits in first cell
+    if (hi.place >= 0) out.place = parseInt(cells[hi.place]) || null;
+    if (!out.place && cells.length) {
+      const m = cells[0].match(/^(\d+)/);
+      if (m) out.place = parseInt(m[1]);
+    }
+    // Match %: dedicated column or first cell matching "NN.NN"
+    if (hi.pct >= 0) out.overall_pct = parseFloat(cells[hi.pct]);
+    if (out.overall_pct == null || isNaN(out.overall_pct)) {
+      for (const c of cells) {
+        const m = c.match(/^(\d{1,3}\.\d{2,4})\s*%?$/);
+        if (m) { out.overall_pct = parseFloat(m[1]); break; }
+      }
+    }
+    return out;
+  }
+
+  // Stage navigation links on this page
+  const stageLinks = [...document.querySelectorAll('a[href*="page=stage"]')]
+    .reduce((acc, a) => {
+      const href = a.getAttribute('href') || '';
+      const m = href.match(/page=stage(\d+)-(.+)$/);
+      if (!m) return acc;
+      const num = parseInt(m[1]);
+      if (!acc.find(x => x.num === num)) acc.push({ num, href, text: a.textContent.trim() });
+      return acc;
+    }, []);
+
+  const memUp  = (mem || '').toUpperCase();
+  const raw    = (nm  || '').trim().toUpperCase();
+  const parts  = raw.split(/[\s,]+/).filter(Boolean);
+  const variants = new Set(raw ? [raw] : []);
+  if (parts.length >= 2) {
+    variants.add(`${parts[parts.length - 1]}, ${parts.slice(0, -1).join(' ')}`);
+    variants.add(`${parts[0]}, ${parts.slice(1).join(' ')}`);
+    variants.add(parts.join(' '));
+  }
+
+  // Search by member number — exact cell match
+  if (memUp) {
+    for (const row of rows) {
+      const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+      const matched = hi.mem >= 0
+        ? (cells[hi.mem] || '').toUpperCase() === memUp
+        : cells.some(c => c.toUpperCase() === memUp);
+      if (!matched) continue;
+      return { _found: true, found_by: 'member_number', stageLinks, ...parseRow(row) };
+    }
+  }
+
+  // Search by name — exact cell match, with/without leading "N." place prefix
+  if (variants.size) {
+    for (const row of rows) {
+      const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
+      const cellsUp = cells.map(c => c.toUpperCase());
+      const matched = [...variants].some(v =>
+        cellsUp.some(c => c === v || c.replace(/^\d+[.\-]\s*/, '') === v)
+      );
+      if (!matched) continue;
+      return { _found: true, found_by: 'name', stageLinks, ...parseRow(row) };
+    }
+  }
+
+  return { _notFound: true, _rowCount: rows.length };
+}
+
+// ── Fetch stage stats via #resultLevel dropdown (tab already on results/new) ───
+async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageOptions, push) {
+  if (!stageOptions || !stageOptions.length) {
+    push('     no stage options found');
+    return null;
+  }
+
+  push(`     fetching ${stageOptions.length} stage(s)…`);
+  const stages = [];
+
+  for (const opt of stageOptions) {
+    // Switch #resultLevel to this stage (division is already set from fetchMatchScore)
+    await runInTab(tabId, setSelectAndFire, ['resultLevel', opt.href || opt.value || opt.text]);
+    await sleep(900);
+
+    // Wait for re-render
+    let page = null;
+    for (let i = 0; i < 6; i++) {
+      page = await runInTab(tabId, getResultsNewState, [memberNumber || '', name || '']);
+      if (page._loading) { await sleep(1000); continue; }
+      break;
+    }
+
+    if (!page?._found) { push(`     ${opt.text}: not found`); continue; }
+
+    const d = page.competitorData;
+    const stageName = opt.text.replace(/^stage\s*\d+\s*[:\-–]\s*/i, '').trim() || opt.text;
+    const stageNum  = parseInt(opt.text.match(/\d+/)?.[0]) || stages.length + 1;
+
+    stages.push({
+      name: stageName,
+      num:  stageNum,
+      time: d.time ?? null,
+      hf:   d.hf   ?? null,
+      pct:  d.overall_pct ?? null,
+      a:    d.a  ?? 0,
+      c:    d.c  ?? 0,
+      d:    d.d  ?? 0,
+      m:    d.m  ?? 0,
+      ns:   d.ns ?? 0,
+      p:    d.p  ?? 0,
+    });
+    push(`     ${opt.text}: ${d.hf?.toFixed(4) ?? '?'} HF  ${d.overall_pct?.toFixed(1) ?? '?'}%`);
+  }
+
+  return stages.length ? stages : null;
+}
+
+// ── Fetch all match scores ────────────────────────────────────────────────────
+async function fetchScores(memberNumber, name) {
+  const log = [];
+  const push = m => { log.push(m); console.log('[PScharts]', m); };
+  let tabId = null;
+
+  try {
+    push('Loading match history…');
+    const tab = await chrome.tabs.create({ url: `${PS_BASE}/associate/step2`, active: false });
+    tabId = tab.id;
+    await waitForTabLoad(tabId);
+    await sleep(2500);
+
+    const matchList = await runInTab(tabId, extractMatchList);
+    push(`Found ${matchList.length} match(es).`);
+    console.log('[PScharts] matchList:', JSON.stringify(matchList, null, 2));
+
+    if (matchList.length === 0) {
+      push('No matches found — are you logged into PractiScore?');
+      return { results: [], log };
+    }
+
+    const uspsaMatches = matchList.filter(m => !/\bidpa\b/i.test(m.match_name));
+    const skipped = matchList.length - uspsaMatches.length;
+    if (skipped > 0) push(`Skipping ${skipped} non-USPSA match(es).`);
+
+    await chrome.storage.local.set({ lastMatchList: uspsaMatches });
+
+    push('Fetching scores…');
+    const cache = await getCache();
+    const results = [];
+
+    for (let i = 0; i < uspsaMatches.length; i++) {
+      const match = uspsaMatches[i];
+      push(`  → [${i + 1}/${uspsaMatches.length}] ${match.match_name} (${match.date})`);
+
+      const cached = cache[match.match_id];
+      // Only use cache if it was fetched for the same member number
+      if (cached && cached.cached_for === (memberNumber || '').toUpperCase()) {
+        push('     (cached)');
+        results.push({ ...match, ...cached, _cached: true });
+        continue;
+      }
+
+      const score  = await fetchMatchScore(tabId, match.match_id, memberNumber, name, push);
+      const stages = score.overall_pct != null
+        ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push)
+        : null;
+      const result = buildResult(match, { ...score, stages }, memberNumber);
+      // Only cache when a score was actually found — prevents cache poisoning from wrong credentials
+      if (result.overall_pct != null) {
+        await updateMatchCache(match.match_id, result);
+      }
+      results.push({ ...result, _cached: false });
+
+      push(`     score: ${score.overall_pct != null ? score.overall_pct + '%' : 'not found'} [${score.found_by || 'none'}]`);
+    }
+
+    const n = results.filter(r => r.overall_pct != null).length;
+    push(`Done — ${n}/${uspsaMatches.length} matches with scores.`);
+    return { results, log };
+
+  } finally {
+    if (tabId) chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+// ── Refresh a single match ────────────────────────────────────────────────────
+async function refreshMatch(match, memberNumber, name) {
+  const log = [];
+  const push = m => { log.push(m); console.log('[PScharts]', m); };
+  let tabId = null;
+
+  try {
+    push(`Refreshing ${match.match_name}…`);
+    const tab = await chrome.tabs.create({
+      url: `${PS_BASE}/results/new/${match.match_id}`,
+      active: false,
+    });
+    tabId = tab.id;
+    await waitForTabLoad(tabId);
+
+    const score  = await fetchMatchScore(tabId, match.match_id, memberNumber, name, push);
+    const stages = score.overall_pct != null
+      ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push)
+      : null;
+    const result = buildResult(match, { ...score, stages }, memberNumber);
+    if (result.overall_pct != null) {
+      await updateMatchCache(match.match_id, result);
+    }
+
+    push(`Done — ${score.overall_pct != null ? score.overall_pct + '%' : 'not found'} [${score.found_by || 'none'}]`);
+    return { result: { ...result, _cached: false }, log };
+
+  } finally {
+    if (tabId) chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+// ── Fetch score from results/new/{matchId} ────────────────────────────────────
+async function fetchMatchScore(tabId, matchId, memberNumber, name, push) {
+  const url = `${PS_BASE}/results/new/${matchId}`;
+
+  await chrome.tabs.update(tabId, { url });
+  await waitForTabLoad(tabId);
+  await sleep(1500);
+
+  // ── Step 1: wait for page to render, find competitor in default (combined) view ──
+  let state = null;
+  for (let i = 0; i < 10; i++) {
+    state = await runInTab(tabId, getResultsNewState, [memberNumber || '', name || '']);
+    if (state._cf)      { push(`     CF — waiting (${i + 1})`); await sleep(3000); continue; }
+    if (state._loading) { await sleep(1500); continue; }
+    break;
+  }
+
+  if (!state?._ready) {
+    push(`     results/new did not load: ${state?._debug || 'unknown'}`);
+    return {};
+  }
+  if (!state._found) {
+    push(`     not found in combined view (${state._rowCount} rows, headers: [${state._headers?.join(', ')}])`);
+    return {};
+  }
+
+  const division = state.competitorData.division;
+  push(`     found via ${state.found_by} — div: ${division}`);
+
+  // ── Step 2: ensure #resultLevel = Overall ────────────────────────────────
+  const overallOpt = state.resultLevelOptions.find(o =>
+    /^(overall|match)$/i.test(o.text.trim())
+  );
+  if (overallOpt) {
+    await runInTab(tabId, setSelectAndFire, ['resultLevel', overallOpt.value]);
+    await sleep(600);
+  }
+
+  // ── Step 3: set #divisionLevel to the competitor's division ──────────────
+  const divKey  = divisionToUrlKey(division);
+  const divOpt  = state.divisionOptions.find(o => {
+    const t = o.text.toLowerCase().replace(/\s+/g, '');
+    const v = (o.value || '').toLowerCase().replace(/\s+/g, '');
+    return t.includes(divKey) || v.includes(divKey) ||
+           t === division.toLowerCase() || v === division.toLowerCase();
+  });
+
+  if (divOpt) {
+    push(`     setting division: "${divOpt.text}" (value="${divOpt.value}")`);
+    await runInTab(tabId, setSelectAndFire, ['divisionLevel', divOpt.value]);
+    await sleep(1000);
+  } else {
+    push(`     no matching division option found for "${division}" — reading combined stats`);
+  }
+
+  // ── Step 4: read competitor's stats from the now-filtered division view ──
+  let finalState = null;
+  for (let i = 0; i < 6; i++) {
+    finalState = await runInTab(tabId, getResultsNewState, [memberNumber || '', name || '']);
+    if (finalState._loading) { await sleep(1200); continue; }
+    break;
+  }
+
+  if (!finalState?._found) {
+    push(`     not found after division filter — falling back to combined stats`);
+    finalState = state;
+  }
+
+  const d = finalState.competitorData;
+  push(`     overall_pct=${d.overall_pct}  place=${d.place}/${d.total}`);
+
+  // Collect stage options (everything in #resultLevel that isn't Overall/Match)
+  const stageOptions = (finalState.resultLevelOptions || state.resultLevelOptions)
+    .filter(o => /stage\s*\d+/i.test(o.text));
+
+  return {
+    overall_pct: d.overall_pct,
+    div_pct:     d.overall_pct,
+    div_place:   d.place,
+    div_total:   d.total,
+    place:       d.place,
+    total:       d.total,
+    division,
+    class_:      d.class_,
+    hf:          d.hf,
+    found_by:    state.found_by,
+    _divOpt:     divOpt,
+    _stageOptions: stageOptions,
+    _divKey:     divKey,
+    // keep _stageLinks compatible with old fetchStageData signature
+    _stageLinks: stageOptions.map((o, i) => ({ num: i, href: o.value, text: o.text })),
+  };
+}
+
+// ── Extract match list from /associate/step2 ─────────────────────────────────
+function extractMatchList() {
+  const DATE_FULL   = /^\d{4}-\d{2}-\d{2}$/;
+  const UUID_FULL   = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const UUID_SEARCH = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+  const uuidByDate = new Map();
+  for (const script of document.querySelectorAll('script:not([src])')) {
+    const text = script.textContent;
+    if (!text.includes('-')) continue;
+    for (const m of text.matchAll(/\{[^{}]{5,2000}\}/g)) {
+      try {
+        const obj  = JSON.parse(m[0]);
+        const vals = Object.values(obj).filter(v => typeof v === 'string');
+        const uuid = vals.find(v => UUID_FULL.test(v));
+        const date = vals.find(v => DATE_FULL.test(v));
+        if (uuid && date && !uuidByDate.has(date)) uuidByDate.set(date, uuid.toLowerCase());
+      } catch (_) {}
+    }
+  }
+
+  const nameByDate = new Map();
+  for (const row of document.querySelectorAll('tr')) {
+    const cells = Array.from(row.querySelectorAll('td')).map(td => td.innerText.trim());
+    const date  = cells.find(c => DATE_FULL.test(c));
+    if (!date) continue;
+    const name  = cells.find(c => c !== date && c.length > 3 && !UUID_FULL.test(c));
+    if (name && !nameByDate.has(date)) nameByDate.set(date, name);
+  }
+
+  const results = [];
+  for (const [date, uuid] of uuidByDate) {
+    results.push({ match_id: uuid, match_name: nameByDate.get(date) || `Match ${uuid.substring(0, 8)}`, date });
+  }
+
+  if (results.length === 0 && nameByDate.size > 0) {
+    const uuids = [...new Set([...document.body.innerHTML.matchAll(UUID_SEARCH)].map(m => m[0].toLowerCase()))];
+    [...nameByDate.entries()].forEach(([date, name], i) => {
+      if (uuids[i]) results.push({ match_id: uuids[i], match_name: name, date });
+    });
+  }
+
+  return results;
+}
