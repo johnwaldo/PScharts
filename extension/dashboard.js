@@ -1013,7 +1013,7 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
                 <div class="tt-stage-row">
                   <span class="tt-stage-name">${s.name}</span>
                   <span class="tt-stage-hf">${s.hf != null ? s.hf.toFixed(4) : '—'}</span>
-                  <span class="tt-stage-hits"><span style="color:#4caf50">${s.a}A</span> <span style="color:#fdd835">${s.c}C</span> <span style="color:#ff9800">${s.d}D</span>${s.m ? ' <span style="color:#f44336;font-weight:600">' + s.m + 'M</span>' : ''}${s.ns ? ' <span style="color:#f44336;font-weight:600">' + s.ns + 'NS</span>' : ''}${s.p ? ' <span style="color:#f44336">' + s.p + 'P</span>' : ''}</span>
+                  <span class="tt-stage-hits">${s.a ? '<span style="color:#4caf50">' + s.a + 'A</span> ' : ''}${s.c ? '<span style="color:#fdd835">' + s.c + 'C</span> ' : ''}${s.d ? '<span style="color:#ff9800">' + s.d + 'D</span>' : ''}${s.m ? ' <span style="color:#f44336;font-weight:600">' + s.m + 'M</span>' : ''}${s.ns ? ' <span style="color:#f44336;font-weight:600">' + s.ns + 'NS</span>' : ''}${s.p ? ' <span style="color:#f44336">' + s.p + 'P</span>' : ''}</span>
                 </div>`).join('')}</div>` : '';
           tooltipEl.innerHTML = `
             <div class="tt-name">${h.label}</div>
