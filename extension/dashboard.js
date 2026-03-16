@@ -929,7 +929,7 @@ function renderMatchList() {
             ${match.stages.map(s => {
               const clf = isClassifierStage(s);
               const badge = clf
-                ? `<span class="classifier-badge" title="${clf.name ? clf.name + ' — ' : ''}CM ${clf.number}">CM ${clf.number}</span>`
+                ? `<a class="classifier-badge" href="https://uspsa.org/viewer/${clf.number}.pdf" target="_blank" title="${clf.name ? clf.name + ' — ' : ''}CM ${clf.number} · View stage description">CM ${clf.number}</a>`
                 : '';
               return `<tr>
               <td>${badge}${s.name}</td>
@@ -956,7 +956,7 @@ function renderMatchList() {
 
       row.style.cursor = 'pointer';
       row.addEventListener('click', e => {
-        if (e.target.closest('.refresh-btn, .delete-btn, .match-include-cb')) return;
+        if (e.target.closest('.refresh-btn, .delete-btn, .match-include-cb, .classifier-badge')) return;
         toggleExpand();
       });
       row.querySelector('.expand-btn').addEventListener('click', e => {
