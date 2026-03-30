@@ -215,6 +215,9 @@ function getResultsNewState(mem, nm) {
   if (!rows.length) rows = Array.from(table.querySelectorAll('tr')).slice(1);
   const total = rows.length;
 
+  // Table exists but is empty — data hasn't rendered yet
+  if (!total) return { _loading: true, _debug: 'table has 0 rows' };
+
   function parseRow(row) {
     const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
     const out   = { total };
