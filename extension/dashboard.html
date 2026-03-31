@@ -446,6 +446,95 @@
     a { color: #4a9eff; text-decoration: none; }
     a:hover { text-decoration: underline; }
 
+    /* ── Onboarding card ── */
+    #onboardingCard {
+      display: none;
+      margin: 0 24px 16px;
+      background: #111827;
+      border: 1px solid rgba(74,158,255,0.3);
+      border-left: 4px solid #4a9eff;
+      border-radius: 8px;
+      padding: 18px 20px 14px;
+    }
+    #onboardingCard.visible { display: block; }
+    .onboarding-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #e0e0e0;
+      margin-bottom: 4px;
+    }
+    .onboarding-subtitle {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+    .onboarding-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .onboarding-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .onboarding-step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(74,158,255,0.15);
+      border: 1px solid rgba(74,158,255,0.4);
+      color: #4a9eff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .onboarding-step-body {
+      flex: 1;
+    }
+    .onboarding-step-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e0e0e0;
+      margin-bottom: 2px;
+    }
+    .onboarding-step-desc {
+      font-size: 13px;
+      color: #778;
+      line-height: 1.5;
+    }
+    .onboarding-link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 6px;
+      background: rgba(74,158,255,0.1);
+      border: 1px solid rgba(74,158,255,0.3);
+      border-radius: 5px;
+      color: #4a9eff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 5px 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .onboarding-link-btn:hover { background: rgba(74,158,255,0.2); text-decoration: none; }
+    .onboarding-divider {
+      border: none;
+      border-top: 1px solid #1e2130;
+      margin: 14px 0 12px;
+    }
+    .onboarding-optional {
+      font-size: 12px;
+      color: #555;
+    }
+    .onboarding-optional a { color: #4a9eff; }
+
     /* ── Update banner ── */
     #updateBanner {
       display: none;
@@ -673,6 +762,43 @@
 </div>
 
 <div id="status">Enter your USPSA member number (recommended) and/or name, then click Fetch Scores.</div>
+
+<div id="onboardingCard">
+  <div class="onboarding-title">Welcome — let's load your match history</div>
+  <div class="onboarding-subtitle">Three steps, about 30–60 seconds total.</div>
+  <div class="onboarding-steps">
+
+    <div class="onboarding-step">
+      <div class="onboarding-step-num">1</div>
+      <div class="onboarding-step-body">
+        <div class="onboarding-step-title">Log in to PractiScore</div>
+        <div class="onboarding-step-desc">The extension reads your match history from your existing PractiScore session — no password is ever shared with this extension.</div>
+        <a class="onboarding-link-btn" href="https://practiscore.com/login" target="_blank">Open PractiScore →</a>
+      </div>
+    </div>
+
+    <div class="onboarding-step">
+      <div class="onboarding-step-num">2</div>
+      <div class="onboarding-step-body">
+        <div class="onboarding-step-title">Enter your USPSA member number and name above</div>
+        <div class="onboarding-step-desc">Your member number (e.g. <strong>A12345</strong>) gives the most accurate results. Your name (e.g. <strong>Smith, Jane</strong>) is used as a fallback. Both are stored locally in your browser only.</div>
+      </div>
+    </div>
+
+    <div class="onboarding-step">
+      <div class="onboarding-step-num">3</div>
+      <div class="onboarding-step-body">
+        <div class="onboarding-step-title">Click Fetch Scores and wait</div>
+        <div class="onboarding-step-desc">The extension opens each match result page in the background and records your score. This takes 30–60 seconds depending on how many matches you have. Don't close the tab.</div>
+      </div>
+    </div>
+
+  </div>
+  <hr class="onboarding-divider">
+  <div class="onboarding-optional">
+    <strong>Optional:</strong> also log in to <a href="https://uspsa.org/login" target="_blank">USPSA.org</a> to enable official classifier percentages and your current classification.
+  </div>
+</div>
 
 <div id="updateBanner">
   <div class="update-banner-header">
