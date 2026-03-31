@@ -258,6 +258,9 @@ function getResultsNewState(mem, nm) {
     variants.add(parts.join(' '));
   }
 
+  // Collect ALL competitor rows for GM benchmark computation
+  const allCompetitorRows = rows.map(row => parseRow(row));
+
   for (const row of rows) {
     const cells   = Array.from(row.querySelectorAll('td')).map(td => td.textContent.trim());
     const cellsUp = cells.map(c => c.toUpperCase());
@@ -279,6 +282,7 @@ function getResultsNewState(mem, nm) {
       divisionOptions,
       resultLevelOptions,
       competitorData: parseRow(row),
+      allCompetitorRows,
       _rowCount: total,
       pageMatchType,
     };
@@ -287,6 +291,7 @@ function getResultsNewState(mem, nm) {
   return {
     _ready: true, _found: false,
     divisionOptions, resultLevelOptions,
+    allCompetitorRows,
     _rowCount: total, _headers: ths,
     pageMatchType,
   };
@@ -471,7 +476,18 @@ async function fetchMatchDef(matchId, push) {
   }
 }
 
+// ── Compute median of an array of numbers ────────────────────────────────────
+function median(arr) {
+  if (!arr.length) return null;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 // ── Fetch stage stats via #resultLevel dropdown (tab already on results/new) ───
+// Also captures all competitor rows to compute GM benchmark HF per stage.
 async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageOptions, push, classifierMap) {
   if (!stageOptions || !stageOptions.length) {
     push('     no stage options found');
@@ -500,6 +516,21 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
     const stageName = opt.text.replace(/^stage\s*\d+\s*[:\-–]\s*/i, '').trim() || opt.text;
     const stageNum  = parseInt(opt.text.match(/\d+/)?.[0]) || stages.length + 1;
 
+    // ── GM benchmark: collect HF values for all GM-class competitors in same division ──
+    // allCompetitorRows contains every row from the current (division-filtered) stage view.
+    // class_ field uses single-letter codes: G=GM, M=Master, A=A-class, etc.
+    let gm_median_hf = null;
+    const allRows = page.allCompetitorRows || [];
+    if (allRows.length > 0) {
+      const gmHFs = allRows
+        .filter(r => r.class_ && r.class_.toUpperCase() === 'G' && r.hf != null && r.hf > 0)
+        .map(r => r.hf);
+      if (gmHFs.length > 0) {
+        gm_median_hf = median(gmHFs);
+        push(`     ${opt.text}: ${gmHFs.length} GM(s), median HF ${gm_median_hf?.toFixed(4)}`);
+      }
+    }
+
     stages.push({
       name:            stageName,
       num:             stageNum,
@@ -512,6 +543,7 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       m:               d.m  ?? 0,
       ns:              d.ns ?? 0,
       p:               d.p  ?? 0,
+      gm_median_hf,
       is_classifier:   null,
       classifier_code: null,
     });
