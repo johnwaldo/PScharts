@@ -27,7 +27,7 @@ const matchRowsEl  = document.getElementById('matchRows');
 const tooltipEl    = document.getElementById('tooltip');
 
 // ── Update check ─────────────────────────────────────────────────────────────
-const RELEASES_API      = 'https://api.github.com/repos/lexxrexx/PScharts/releases/latest';
+const RELEASES_API      = 'https://api.github.com/repos/johnwaldo/PScharts/releases/latest';
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // re-check at most every 4 hours
 
 function parseVersion(v) {
@@ -59,12 +59,26 @@ async function checkForUpdate() {
     if (!res.ok) return;
     const data = await res.json();
     const latestVersion = (data.tag_name || '').replace(/^v/, '');
-    const downloadUrl   = data.html_url || 'https://github.com/lexxrexx/PScharts/releases/latest';
+    // Sanitize downloadUrl: only allow https://github.com URLs to prevent XSS via injected href
+    const rawUrl    = data.html_url || '';
+    const downloadUrl = /^https:\/\/github\.com\//.test(rawUrl)
+      ? rawUrl
+      : 'https://github.com/johnwaldo/PScharts/releases/latest';
     const releaseNotes  = (data.body || '').trim();
 
     await chrome.storage.local.set({ updateCheck: { latestVersion, downloadUrl, releaseNotes, checkedAt: now } });
     showUpdateBanner(latestVersion, downloadUrl, releaseNotes);
   } catch (_) {}
+}
+
+// Escape HTML special characters to prevent XSS when inserting untrusted text into innerHTML
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function showUpdateBanner(latestVersion, downloadUrl, releaseNotes) {
@@ -76,8 +90,9 @@ function showUpdateBanner(latestVersion, downloadUrl, releaseNotes) {
   const notesEl   = document.getElementById('updateBannerNotes');
   const toggleBtn = document.getElementById('updateNotesToggle');
 
-  textEl.innerHTML = `Update available: v${latestVersion} &mdash; `
-    + `<a href="${downloadUrl}" target="_blank">Download</a>, then go to `
+  // Use escHtml for latestVersion (from API); downloadUrl is already validated above
+  textEl.innerHTML = `Update available: v${escHtml(latestVersion)} &mdash; `
+    + `<a href="${escHtml(downloadUrl)}" target="_blank">Download</a>, then go to `
     + `<a href="chrome://extensions" target="_blank">chrome://extensions</a> and click the reload button.`;
 
   if (releaseNotes) {
@@ -755,6 +770,9 @@ function renderAll() {
       showClassBands: true,
     });
     setPlacementVisible(false);
+    // Hide non-classifier trend in classifiers-only mode
+    const nonClfSectionClf = document.getElementById('chartNonClfSection');
+    if (nonClfSectionClf) nonClfSectionClf.style.display = 'none';
     return;
   }
 
@@ -847,6 +865,43 @@ function renderAll() {
     drawMessage(document.getElementById('chartPlace'), 'No placement data.');
   }
 
+  // ── Non-classifier stage trend ────────────────────────────────────────────
+  // Shows avg HF% across non-classifier stages per match — a stable cross-match
+  // progression signal since classifier stages are one-off courses.
+  // Only shown when at least 2 matches have non-classifier stage data.
+  const nonClfSection = document.getElementById('chartNonClfSection');
+  const nonClfPoints = [];
+  for (const r of viewSorted) {
+    if (!r.stages?.length) continue;
+    const nonClfStages = r.stages.filter(s => s.is_classifier === false || (s.is_classifier == null && !isClassifierStage(s)));
+    if (!nonClfStages.length) continue;
+    // Compute avg HF% for non-classifier stages (pct = stage % vs match top HF)
+    const pcts = nonClfStages.map(s => s.pct).filter(v => v != null);
+    if (!pcts.length) continue;
+    const avgPct = pcts.reduce((a, v) => a + v, 0) / pcts.length;
+    nonClfPoints.push({
+      date: r.date,
+      y: avgPct,
+      label: r.match_name,
+      division: r.division,
+      class_: r.class_,
+      stageCount: nonClfStages.length,
+    });
+  }
+  nonClfPoints.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  if (nonClfPoints.length >= 2) {
+    nonClfSection.style.display = '';
+    const nonClfSeries = [{ label: 'Non-Clf Avg %', color: '#00bcd4', points: nonClfPoints }];
+    const nonClfDates  = nonClfPoints.map(p => p.date);
+    drawMultiSeriesChart(document.getElementById('chartNonClf'), nonClfSeries, nonClfDates, {
+      yLabel: 'Avg Stage %', yMin: 0, yMax: 100, invertY: false, trend: true, valueUnit: '%',
+      showClassBands: true,
+    });
+  } else {
+    nonClfSection.style.display = 'none';
+  }
+
 }
 
 // ── Match history list ────────────────────────────────────────────────────────
@@ -873,7 +928,7 @@ function renderMatchList() {
                    : 'none';
 
     const scoreText = match.overall_pct != null
-      ? fmtPct(match.overall_pct) + (match.division ? ' · ' + match.division : '') + (match.class_ ? '/' + match.class_ : '')
+      ? fmtPct(match.overall_pct) + (match.division ? ' · ' + escHtml(match.division) : '') + (match.class_ ? '/' + escHtml(match.class_) : '')
       : null;
 
     const metaParts = [match.date];
@@ -892,61 +947,146 @@ function renderMatchList() {
     const row = document.createElement('div');
     row.className = 'match-row';
     row.dataset.matchId = match.match_id;
+    // Build row using DOM methods for untrusted text (match_name, matchType) to prevent XSS (F1)
     row.innerHTML = `
       <input type="checkbox" class="match-include-cb" title="Include in charts"
         ${isDeselected ? '' : 'checked'}
         ${!isUSPSA ? 'disabled' : ''}>
       <div class="match-dot ${dotClass}"></div>
       <div class="match-info">
-        <div class="match-name">${match.match_name}</div>
-        <div class="match-meta">${metaParts.join(' · ')}</div>
+        <div class="match-name"></div>
+        <div class="match-meta"></div>
       </div>
-      <span class="match-type-badge ${typeBadgeClass}">${matchType}</span>
+      <span class="match-type-badge ${typeBadgeClass}"></span>
       <div class="match-score ${scoreText ? '' : 'none'}">${scoreText || 'No score'}</div>
       ${hasStages ? '<button class="expand-btn" title="Show stage breakdown">▼</button>' : ''}
       <button class="refresh-btn" title="Re-fetch this match">↻</button>
       <button class="delete-btn" title="Delete from history">✕</button>
     `;
+    // Set untrusted text via textContent to prevent XSS
+    row.querySelector('.match-name').textContent = match.match_name;
+    row.querySelector('.match-meta').textContent = metaParts.join(' · ');
+    row.querySelector('.match-type-badge').textContent = matchType;
 
     if (hasStages) {
       const panel = document.createElement('div');
       panel.className = 'stage-panel';
-      panel.innerHTML = `
-        <table class="stage-table">
-          <thead><tr>
-            <th>Stage</th>
-            <th>Time</th>
-            <th>HF</th>
-            <th>%</th>
-            <th class="col-a">A</th>
-            <th class="col-c">C</th>
-            <th class="col-d">D</th>
-            <th class="col-m">M</th>
-            <th class="col-ns">NS</th>
-            <th class="col-p">P</th>
-          </tr></thead>
-          <tbody>
-            ${match.stages.map(s => {
-              const clf = isClassifierStage(s);
-              const badge = clf
-                ? `<a class="classifier-badge" href="https://uspsa.org/viewer/${clf.number}.pdf" target="_blank" title="${clf.name ? clf.name + ' — ' : ''}CM ${clf.number} · View stage description">CM ${clf.number}</a>`
-                : '';
-              return `<tr>
-              <td>${badge}${s.name}</td>
-              <td>${s.time != null ? s.time.toFixed(2) + 's' : '—'}</td>
-              <td>${s.hf   != null ? s.hf.toFixed(4)         : '—'}</td>
-              <td>${fmtPct(s.pct)}</td>
-              <td class="col-a">${s.a}</td>
-              <td class="col-c">${s.c}</td>
-              <td class="col-d">${s.d}</td>
-              <td class="col-m">${s.m || '—'}</td>
-              <td class="col-ns">${s.ns || '—'}</td>
-              <td class="col-p">${s.p || '—'}</td>
-            </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      `;
+
+      // Compute accuracy loss (seconds lost to non-A hits) per stage:
+      // acc_loss = (C×1 + D×2 + M×5 + NS×5) / your_HF
+      // This converts penalty points into "seconds you'd have saved with perfect accuracy".
+      // Speed gap vs GM: how many seconds behind GM pace (gm_median_hf - your_hf) / gm_median_hf * time
+      function stageAccLoss(s) {
+        if (!s.hf || s.hf <= 0) return null;
+        const penaltyPts = (s.c || 0) * 1 + (s.d || 0) * 2 + (s.m || 0) * 5 + (s.ns || 0) * 5;
+        return penaltyPts / s.hf;
+      }
+      function stageGmPct(s) {
+        if (!s.gm_median_hf || !s.hf) return null;
+        return (s.hf / s.gm_median_hf) * 100;
+      }
+
+      const hasGM = match.stages.some(s => s.gm_median_hf != null);
+
+      // Build table using DOM to avoid XSS on stage names (F1)
+      const table = document.createElement('table');
+      table.className = 'stage-table';
+
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      const headers = ['Stage', 'Time', 'HF', '%'];
+      if (hasGM) headers.push('GM%', 'Acc Loss');
+      headers.push('A', 'C', 'D', 'M', 'NS', 'P');
+      headers.forEach((h, i) => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        if (i > 0) th.style.textAlign = 'right';
+        const colClass = { A: 'col-a', C: 'col-c', D: 'col-d', M: 'col-m', NS: 'col-ns', P: 'col-p' }[h];
+        if (colClass) th.className = colClass;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      match.stages.forEach(s => {
+        const clf = isClassifierStage(s);
+        const tr = document.createElement('tr');
+
+        // Stage name cell — use DOM to prevent XSS
+        const nameTd = document.createElement('td');
+        if (clf) {
+          const badge = document.createElement('a');
+          badge.className = 'classifier-badge';
+          badge.href = `https://uspsa.org/viewer/${encodeURIComponent(clf.number)}.pdf`;
+          badge.target = '_blank';
+          badge.title = `${clf.name ? clf.name + ' — ' : ''}CM ${clf.number} · View stage description`;
+          badge.textContent = `CM ${clf.number}`;
+          nameTd.appendChild(badge);
+        }
+        nameTd.appendChild(document.createTextNode(s.name));
+        tr.appendChild(nameTd);
+
+        // Numeric cells
+        const cells = [
+          s.time != null ? s.time.toFixed(2) + 's' : '—',
+          s.hf   != null ? s.hf.toFixed(4)         : '—',
+          null, // pct — uses fmtPct (HTML)
+        ];
+        cells.forEach((val, i) => {
+          const td = document.createElement('td');
+          td.textContent = val;
+          tr.appendChild(td);
+        });
+        // % cell — fmtPct returns safe HTML with color spans
+        const pctTd = tr.children[3];
+        pctTd.innerHTML = fmtPct(s.pct);
+
+        if (hasGM) {
+          // GM% cell
+          const gmPct = stageGmPct(s);
+          const gmTd = document.createElement('td');
+          if (gmPct != null) {
+            const color = gmPct >= 95 ? '#ffd700' : gmPct >= 85 ? '#e040fb' : gmPct >= 75 ? '#4caf50' : gmPct >= 60 ? '#4a9eff' : '#ff9800';
+            gmTd.innerHTML = `<span style="color:${color}">${gmPct.toFixed(1)}%</span>`;
+            gmTd.title = `Your HF vs median GM HF (${s.gm_median_hf?.toFixed(4)})`;
+          } else {
+            gmTd.textContent = '—';
+          }
+          tr.appendChild(gmTd);
+
+          // Accuracy loss cell
+          const accLoss = stageAccLoss(s);
+          const accTd = document.createElement('td');
+          if (accLoss != null) {
+            const color = accLoss < 0.5 ? '#4caf50' : accLoss < 1.5 ? '#fdd835' : '#f44336';
+            accTd.innerHTML = `<span style="color:${color}" title="Seconds lost to non-A hits: (C×1 + D×2 + M×5 + NS×5) / HF">−${accLoss.toFixed(2)}s</span>`;
+          } else {
+            accTd.textContent = '—';
+          }
+          tr.appendChild(accTd);
+        }
+
+        // Hit columns
+        const hitCols = [
+          { val: s.a,  cls: 'col-a' },
+          { val: s.c,  cls: 'col-c' },
+          { val: s.d,  cls: 'col-d' },
+          { val: s.m,  cls: 'col-m' },
+          { val: s.ns, cls: 'col-ns' },
+          { val: s.p,  cls: 'col-p' },
+        ];
+        hitCols.forEach(({ val, cls }) => {
+          const td = document.createElement('td');
+          td.className = cls;
+          td.textContent = val || '—';
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      panel.appendChild(table);
 
       const toggleExpand = () => {
         const isOpen = panel.classList.toggle('open');
@@ -1315,14 +1455,15 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
       const h  = (canvas._hitMap || []).find(h => Math.hypot(h.cx - mx, h.cy - my) < 16);
       if (h) {
         const unit = h.valueUnit;
+        // Use escHtml for untrusted strings (match names, stage names) in tooltip innerHTML (F1)
         const multiMatchRows = h.multiMatch ? h.multiMatch.map(m => {
           if (unit === '%') {
             const b = bandForPct(m.y);
             const c = b ? b.text.replace('0.55', '1') : '#8a9bb0';
-            return `<div class="tt-stage-row"><span class="tt-stage-name">${m.label}</span>`
+            return `<div class="tt-stage-row"><span class="tt-stage-name">${escHtml(m.label)}</span>`
               + `<span style="color:${c}">${m.y != null ? m.y.toFixed(1) + '%' + (b ? ' ' + b.label : '') : '—'}</span></div>`;
           }
-          return `<div class="tt-stage-row"><span class="tt-stage-name">${m.label}</span>`
+          return `<div class="tt-stage-row"><span class="tt-stage-name">${escHtml(m.label)}</span>`
             + `<span style="color:#8a9bb0">${m.rawPlace}/${m.total} (beat ${m.y.toFixed(1)}%)</span></div>`;
         }).join('') : '';
 
@@ -1333,8 +1474,8 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
             ? `<div class="tt-score" style="color:${h.color}">${h.y.toFixed(1)}%${classLabel} <span style="font-size:11px;color:#666">avg (div)</span></div>`
             : `<div class="tt-score" style="color:${h.color}">${h.y.toFixed(1)}% <span style="font-size:11px;color:#666">avg beaten</span></div>`;
           tooltipEl.innerHTML = `
-            <div class="tt-name">${h.label}</div>
-            <div class="tt-date">${h.date || ''}</div>
+            <div class="tt-name">${escHtml(h.label)}</div>
+            <div class="tt-date">${escHtml(h.date || '')}</div>
             ${avgLine}
             <div class="tt-stages">${multiMatchRows}</div>
           `;
@@ -1348,7 +1489,7 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
             ? `<div class="tt-score" style="color:${h.color}">Place ${h.rawPlace} / ${h.total} <span style="font-size:11px;color:#666">(beat ${h.y.toFixed(1)}% of field)</span></div>`
             : `<div class="tt-score" style="color:${h.color}">Place ${h.y}${h.total ? ' / ' + h.total : ''}</div>`;
           const divLine = (h.division || h.class_)
-            ? `<div class="tt-meta">${[h.division, h.class_].filter(Boolean).join(' / ')}</div>` : '';
+            ? `<div class="tt-meta">${escHtml([h.division, h.class_].filter(Boolean).join(' / '))}</div>` : '';
           const overallLine = (unit === '%' && h.overall_pct != null && Math.abs(h.overall_pct - h.y) > 0.1)
             ? `<div class="tt-meta">${h.overall_pct.toFixed(1)}% overall</div>` : '';
           const pctLine = (unit === '' && h.overall_pct != null)
@@ -1356,9 +1497,9 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
           const nameLine = h.foundBy === 'name'
             ? `<div class="tt-meta" style="color:#ff9800">matched by name</div>` : '';
           const seriesLine = (canvas._hitMap || []).some(x => x.seriesLabel !== h.seriesLabel)
-            ? `<div class="tt-meta" style="color:${h.color}">${h.seriesLabel}</div>` : '';
+            ? `<div class="tt-meta" style="color:${h.color}">${escHtml(h.seriesLabel)}</div>` : '';
           const matchNameLine = (h.match_name && h.match_name !== h.label)
-            ? `<div class="tt-meta">${h.match_name}</div>` : '';
+            ? `<div class="tt-meta">${escHtml(h.match_name)}</div>` : '';
           const hfLine = (h.hf != null && !h.stages?.length)
             ? `<div class="tt-meta">HF ${h.hf.toFixed(4)}</div>` : '';
           const hitsLine = (!h.stages?.length && (h.a || h.c || h.d || h.m || h.ns || h.p_))
@@ -1373,17 +1514,17 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
           const stagesHtml = (h.stages && h.stages.length > 0)
             ? `<div class="tt-stages">${h.stages.map(s => {
                 const clf = isClassifierStage(s);
-                const clfBadge = clf ? `<span class="classifier-badge" title="${clf.name ? clf.name + ' — ' : ''}CM ${clf.number}">CM ${clf.number}</span>` : '';
+                const clfBadge = clf ? `<span class="classifier-badge" title="${escHtml(clf.name ? clf.name + ' — ' : '') + 'CM ' + escHtml(clf.number)}">CM ${escHtml(clf.number)}</span>` : '';
                 return `
                 <div class="tt-stage-row">
-                  <span class="tt-stage-name">${clfBadge}${s.name}</span>
+                  <span class="tt-stage-name">${clfBadge}${escHtml(s.name)}</span>
                   <span class="tt-stage-hf">${s.hf != null ? s.hf.toFixed(4) : '—'}</span>
                   <span class="tt-stage-hits">${s.a ? '<span style="color:#4caf50">' + s.a + 'A</span> ' : ''}${s.c ? '<span style="color:#fdd835">' + s.c + 'C</span> ' : ''}${s.d ? '<span style="color:#ff9800">' + s.d + 'D</span>' : ''}${s.m ? ' <span style="color:#f44336;font-weight:600">' + s.m + 'M</span>' : ''}${s.ns ? ' <span style="color:#f44336;font-weight:600">' + s.ns + 'NS</span>' : ''}${s.p ? ' <span style="color:#f44336">' + s.p + 'P</span>' : ''}</span>
                 </div>`;
               }).join('')}</div>` : '';
           tooltipEl.innerHTML = `
-            <div class="tt-name">${h.label}</div>
-            <div class="tt-date">${h.date || ''}</div>
+            <div class="tt-name">${escHtml(h.label)}</div>
+            <div class="tt-date">${escHtml(h.date || '')}</div>
             ${mainVal}${divLine}${overallLine}${pctLine}${seriesLine}${nameLine}${matchNameLine}${hfLine}${hitsLine}${stagesHtml}
           `;
         }
