@@ -409,6 +409,21 @@ saveBtn.addEventListener('click', async () => {
   lockInputs();
 });
 
+// ── Onboarding card ───────────────────────────────────────────────────────────
+// Shown only on first run — no saved member number, name, or match history.
+// Dismissed automatically when Fetch Scores is clicked.
+const onboardingCard = document.getElementById('onboardingCard');
+
+function showOnboarding() {
+  onboardingCard.classList.add('visible');
+  // Clear the default status hint — the card replaces it
+  setStatus('', '');
+}
+
+function hideOnboarding() {
+  onboardingCard.classList.remove('visible');
+}
+
 // ── Restore persisted state on load ──────────────────────────────────────────
 chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache', 'deselectedMatches', 'classificationData'], d => {
   if (d.memberNumber) memberInput.value = d.memberNumber;
@@ -418,6 +433,11 @@ chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache',
   // Lock inputs if we already have saved credentials
   if (d.memberNumber || d.name) {
     lockInputs();
+  }
+
+  // Show onboarding only on genuine first run — no credentials and no match history
+  if (!d.memberNumber && !d.name && !d.lastMatchList) {
+    showOnboarding();
   }
 
   if (d.lastMatchList) {
@@ -478,6 +498,9 @@ fetchBtn.addEventListener('click', async () => {
   const memberNumber = memberInput.value.trim().toUpperCase();
   const name         = nameInput.value.trim();
   if (!memberNumber && !name) { setStatus('Please enter your USPSA member number and/or your name.', 'error'); return; }
+
+  // Dismiss onboarding permanently once the user initiates a fetch
+  hideOnboarding();
 
   const noMemberWarningEl = document.getElementById('noMemberWarning');
   if (!memberNumber) {
