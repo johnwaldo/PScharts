@@ -429,9 +429,12 @@ chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache',
       if (!d.memberNumber) switchView('all');
       renderAll();
       renderMatchList();
-      const scored = restored.filter(r => r.overall_pct != null).length;
-      const uspsa  = restored.filter(r => isLikelyUSPSA(r.match_type || 'Unknown')).length;
-      setStatus(`Showing cached data — ${scored}/${uspsa} USPSA matches scored. Click Fetch Scores to check for new matches.`, 'success');
+      const uspsaRestored = restored.filter(r => isLikelyUSPSA(r.match_type || 'Unknown'));
+      const scored = uspsaRestored.filter(r => r.overall_pct != null).length;
+      const uspsa  = uspsaRestored.length;
+      const nonUspsa = restored.length - uspsa;
+      const skippedNote = nonUspsa > 0 ? ` · ${nonUspsa} non-USPSA excluded` : '';
+      setStatus(`Showing cached data — ${scored}/${uspsa} USPSA matches scored.${skippedNote} Click Fetch Scores to check for new matches.`, 'success');
     }
   }
 });
@@ -1411,8 +1414,9 @@ async function deleteMatch(match) {
     matchHistory.classList.remove('visible');
     setStatus('No matches. Click Fetch Scores to load.', '');
   } else {
-    const scored = allResults.filter(r => r.overall_pct != null).length;
-    setStatus(`${allResults.length} match(es) — ${scored} with scores.`, 'success');
+    const uspsaLeft = allResults.filter(r => isLikelyUSPSA(r.match_type || 'Unknown'));
+    const scored = uspsaLeft.filter(r => r.overall_pct != null).length;
+    setStatus(`${uspsaLeft.length} USPSA match(es) — ${scored} with scores.`, 'success');
   }
 }
 
@@ -1456,12 +1460,11 @@ function setStatus(msg, type = '', loading = false) {
 // verb = 'Loaded' on first fetch, omitted (defaults to 'Showing') on checkbox changes.
 function updateStatusCounts(verb) {
   if (!allResults.length) return;
-  const uspsa    = allResults.filter(r => isLikelyUSPSA(r.match_type || 'Unknown')).length;
-  const nonUspsa = allResults.length - uspsa;
-  const checked  = allResults.filter(r =>
-    isLikelyUSPSA(r.match_type || 'Unknown') && !deselectedMatches.has(r.match_id)
-  ).length;
-  const scored   = allResults.filter(r => r.overall_pct != null).length;
+  const uspsaMatches = allResults.filter(r => isLikelyUSPSA(r.match_type || 'Unknown'));
+  const nonUspsa = allResults.length - uspsaMatches.length;
+  const uspsa    = uspsaMatches.length;
+  const scored   = uspsaMatches.filter(r => r.overall_pct != null).length;
+  const checked  = uspsaMatches.filter(r => !deselectedMatches.has(r.match_id)).length;
 
   const prefix      = verb || 'Showing';
   const checkedNote = checked < uspsa ? ` · ${checked} checked` : '';
