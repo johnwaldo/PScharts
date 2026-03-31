@@ -34,14 +34,14 @@ Chrome does not allow side-loading extensions from a zip file directly, so you l
 
 **Option A — Download a release (recommended)**
 
-1. Go to the [Releases page](https://github.com/lexxrexx/PScharts/releases)
-2. Download the latest `pscharts.zip`
+1. Go to the [Releases page](https://github.com/johnwaldo/PScharts/releases)
+2. Download the latest `pscharts-vX.X.zip`
 3. Unzip the archive anywhere on your computer
 
 **Option B — Clone the repo**
 
 ```bash
-git clone https://github.com/lexxrexx/PScharts.git
+git clone https://github.com/johnwaldo/PScharts.git
 ```
 
 ### 2 — Open Chrome Extensions
