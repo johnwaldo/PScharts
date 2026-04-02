@@ -141,6 +141,58 @@ function showUpdateBanner(latestVersion, zipUrl, releasePageUrl, releaseNotes) {
 
 checkForUpdate();
 
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = theme === 'light' ? '\u263E' : '\u2606'; // moon / sun
+}
+
+// Restore saved theme (check sync first, then local)
+chrome.storage.sync.get(['theme'], syncData => {
+  const theme = syncData.theme || 'dark';
+  applyTheme(theme);
+  // Also save to local for fast restore
+  chrome.storage.local.set({ theme });
+});
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  chrome.storage.local.set({ theme: next });
+  chrome.storage.sync.set({ theme: next });
+  // Redraw charts with new theme colors
+  renderAll();
+});
+
+// ── Credential sync backup ────────────────────────────────────────────────────
+// On save, back up member number + name to chrome.storage.sync so they survive
+// extension reinstalls. On load, restore from sync if local is empty.
+async function syncCredentials(memberNumber, name) {
+  try {
+    await chrome.storage.sync.set({ memberNumber, name });
+  } catch (_) {} // sync may fail if quota exceeded or offline — non-critical
+}
+
+async function restoreFromSync() {
+  try {
+    const local = await chrome.storage.local.get(['memberNumber', 'name']);
+    if (local.memberNumber || local.name) return; // local has data, no need to restore
+    const sync = await chrome.storage.sync.get(['memberNumber', 'name']);
+    if (sync.memberNumber || sync.name) {
+      // Restore from sync to local
+      await chrome.storage.local.set({
+        memberNumber: sync.memberNumber || '',
+        name: sync.name || '',
+      });
+      if (sync.memberNumber) memberInput.value = sync.memberNumber;
+      if (sync.name) nameInput.value = sync.name;
+      lockInputs();
+    }
+  } catch (_) {}
+}
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let allResults       = [];
 let currentView      = 'ranked'; // 'ranked' | 'all'
@@ -514,6 +566,7 @@ saveBtn.addEventListener('click', async () => {
 
   memberInput.value = newMember;
   chrome.storage.local.set({ memberNumber: newMember, name: newName });
+  syncCredentials(newMember, newName);
   lockInputs();
 });
 
@@ -533,7 +586,16 @@ function hideOnboarding() {
 }
 
 // ── Restore persisted state on load ──────────────────────────────────────────
-chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache', 'deselectedMatches', 'classificationData'], d => {
+chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache', 'deselectedMatches', 'classificationData'], async d => {
+  // Try restoring from sync if local has no credentials (e.g. after reinstall)
+  if (!d.memberNumber && !d.name) {
+    await restoreFromSync();
+    // Re-read local after potential sync restore
+    const refreshed = await chrome.storage.local.get(['memberNumber', 'name']);
+    if (refreshed.memberNumber) d.memberNumber = refreshed.memberNumber;
+    if (refreshed.name) d.name = refreshed.name;
+  }
+
   if (d.memberNumber) memberInput.value = d.memberNumber;
   if (d.name)         nameInput.value   = d.name;
   if (d.deselectedMatches) deselectedMatches = new Set(d.deselectedMatches);
@@ -541,6 +603,8 @@ chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache',
   // Lock inputs if we already have saved credentials
   if (d.memberNumber || d.name) {
     lockInputs();
+    // Ensure sync is up to date
+    syncCredentials(d.memberNumber || '', d.name || '');
   }
 
   // Show onboarding only on genuine first run — no credentials and no match history
@@ -1757,10 +1821,16 @@ function formatAge(ts) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const PAD        = { top: 24, right: 52, bottom: 44, left: 48 };
-const GRID_COLOR = '#1e2130';
-const AXIS_COLOR = '#2a2d3a';
-const TEXT_COLOR = '#666';
 const FONT       = '10px system-ui, sans-serif';
+
+// Read CSS custom properties for canvas drawing (canvas doesn't support var())
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function GRID_COLOR() { return cssVar('--grid'); }
+function AXIS_COLOR() { return cssVar('--axis'); }
+function TEXT_COLOR() { return cssVar('--chart-text'); }
+function CHART_BG()   { return cssVar('--chart-bg'); }
 
 // USPSA classification bands (% thresholds)
 const CLASS_BANDS = [
@@ -1795,7 +1865,7 @@ function chartArea(canvas) {
 
 function clearCanvas(ctx, canvas) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#0f1117';
+  ctx.fillStyle = CHART_BG();
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -1860,28 +1930,28 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
   }
 
   // Grid
-  ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = GRID_COLOR(); ctx.lineWidth = 1;
   for (let i = 0; i <= 5; i++) {
     const v = rawMin + yRange * i / 5, cy = toY(v);
     ctx.beginPath(); ctx.moveTo(area.x0, cy); ctx.lineTo(area.x0 + area.w, cy); ctx.stroke();
-    ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'right';
+    ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'right';
     ctx.fillText(v.toFixed(0), area.x0 - 5, cy + 3);
   }
 
   // Axes
-  ctx.strokeStyle = AXIS_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = AXIS_COLOR(); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(area.x0, area.y0);
   ctx.lineTo(area.x0, area.y0 + area.h);
   ctx.lineTo(area.x0 + area.w, area.y0 + area.h); ctx.stroke();
 
   // Y label
   ctx.save(); ctx.translate(10, area.y0 + area.h / 2); ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'center';
   ctx.fillText(yLabel, 0, 0); ctx.restore();
 
   // X date labels
   const step = Math.ceil(allDates.length / 8);
-  ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'center';
   allDates.forEach((d, i) => {
     if (i % step !== 0 && i !== allDates.length - 1) return;
     ctx.fillText(d.substring(5), dateToCanvasX(d), area.y0 + area.h + 14); // MM-DD
@@ -1894,7 +1964,7 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
     seriesArr.forEach(s => {
       ctx.fillStyle = s.color;
       ctx.fillRect(lx, ly - 7, 12, 8);
-      ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'left';
+      ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'left';
       ctx.fillText(s.label, lx + 16, ly);
       lx += 16 + ctx.measureText(s.label).width + 16;
     });
@@ -2066,23 +2136,23 @@ function drawLineChart(canvas, points, opts = {}) {
   };
 
   // Grid
-  ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = GRID_COLOR(); ctx.lineWidth = 1;
   for (let i = 0; i <= 5; i++) {
     const v = rawMin + yRange * i / 5, cy = toY(v);
     ctx.beginPath(); ctx.moveTo(area.x0, cy); ctx.lineTo(area.x0 + area.w, cy); ctx.stroke();
-    ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'right';
+    ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'right';
     ctx.fillText(v.toFixed(0), area.x0 - 5, cy + 3);
   }
 
   // Axes
-  ctx.strokeStyle = AXIS_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = AXIS_COLOR(); ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(area.x0, area.y0);
   ctx.lineTo(area.x0, area.y0 + area.h);
   ctx.lineTo(area.x0 + area.w, area.y0 + area.h); ctx.stroke();
 
   // Y label
   ctx.save(); ctx.translate(10, area.y0 + area.h / 2); ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'center';
   ctx.fillText(yLabel, 0, 0); ctx.restore();
 
   // Trend
@@ -2113,7 +2183,7 @@ function drawLineChart(canvas, points, opts = {}) {
 
   // X labels (MM-DD)
   const step = Math.ceil(points.length / 8);
-  ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'center';
   points.forEach((p, i) => {
     if (i % step !== 0 && i !== points.length - 1) return;
     const lbl = p.date ? p.date.substring(5) : `#${i+1}`;
@@ -2175,7 +2245,7 @@ function drawLineChart(canvas, points, opts = {}) {
 function drawMessage(canvas, msg) {
   const ctx = canvas.getContext('2d');
   clearCanvas(ctx, canvas);
-  ctx.fillStyle = '#444'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
 }
 
@@ -2221,7 +2291,7 @@ function drawStackedBarChart(canvas, bars) {
 
     // X label
     if (n <= 12 || i % Math.ceil(n / 8) === 0 || i === n - 1) {
-      ctx.fillStyle = TEXT_COLOR;
+      ctx.fillStyle = TEXT_COLOR();
       ctx.font = FONT;
       ctx.textAlign = 'center';
       ctx.fillText(bar.date ? bar.date.substring(5) : `#${i + 1}`, cx, area.y0 + area.h + 14);
@@ -2229,16 +2299,16 @@ function drawStackedBarChart(canvas, bars) {
   });
 
   // Y axis — 0/25/50/75/100%
-  ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = GRID_COLOR(); ctx.lineWidth = 1;
   [0, 25, 50, 75, 100].forEach(v => {
     const cy = area.y0 + area.h - (v / 100) * area.h;
     ctx.beginPath(); ctx.moveTo(area.x0, cy); ctx.lineTo(area.x0 + area.w, cy); ctx.stroke();
-    ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'right';
+    ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'right';
     ctx.fillText(v + '%', area.x0 - 5, cy + 3);
   });
 
   // Axes
-  ctx.strokeStyle = AXIS_COLOR; ctx.lineWidth = 1;
+  ctx.strokeStyle = AXIS_COLOR(); ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(area.x0, area.y0);
   ctx.lineTo(area.x0, area.y0 + area.h);
@@ -2251,7 +2321,7 @@ function drawStackedBarChart(canvas, bars) {
   SEGMENTS.forEach(seg => {
     ctx.fillStyle = COLORS[seg];
     ctx.fillRect(lx, ly - 7, 10, 8);
-    ctx.fillStyle = TEXT_COLOR; ctx.font = FONT; ctx.textAlign = 'left';
+    ctx.fillStyle = TEXT_COLOR(); ctx.font = FONT; ctx.textAlign = 'left';
     ctx.fillText(SEG_LABELS[seg], lx + 14, ly);
     lx += 14 + ctx.measureText(SEG_LABELS[seg]).width + 14;
   });
