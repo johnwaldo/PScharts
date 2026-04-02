@@ -1,0 +1,56 @@
+name: Release on merge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extension/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' extension/manifest.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build extension zip
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          cd extension
+          zip -r ../PScharts-v${{ steps.version.outputs.version }}.zip .
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract commit messages since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            NOTES=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s" --no-merges | grep -v "^- chore:" || true)
+          else
+            NOTES=$(git log --pretty=format:"- %s" --no-merges -10 | grep -v "^- chore:" || true)
+          fi
+
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "PScharts-v${{ steps.version.outputs.version }}.zip" \
+            --title "PScharts v${{ steps.version.outputs.version }}" \
+            --notes "${NOTES:-No notable changes.}"
