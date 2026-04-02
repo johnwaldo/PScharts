@@ -161,6 +161,114 @@ function isChartable(r) {
   return isLikelyUSPSA(r.match_type || 'Unknown');
 }
 
+// ── Cross-division HHF normalization (field-strength adjustment) ──────────────
+// Factors derived from hitfactor.info March 2025 USPSA HHFs.
+// Usage: source_hf * DIVISION_FACTORS[your_division][source_division] = your-division-equivalent HF
+// Keys use hitfactor.info short names (opn, ltd, co, lo, etc.)
+const DIVISION_FACTORS = {
+  opn:  { opn: 1.0000, ltd: 1.1448, l10: 1.0739, prod: 1.1839, rev: 1.4776, ss: 1.1931, co: 1.1085, pcc: 0.9883, lo: 1.0971 },
+  ltd:  { opn: 0.8735, ltd: 1.0000, l10: 0.9406, prod: 1.0345, rev: 1.2641, ss: 1.0276, co: 0.9668, pcc: 0.8554, lo: 0.9573 },
+  l10:  { opn: 0.9312, ltd: 1.0631, l10: 1.0000, prod: 1.0942, rev: 1.3429, ss: 1.1013, co: 1.0335, pcc: 0.9026, lo: 1.0259 },
+  prod: { opn: 0.8446, ltd: 0.9667, l10: 0.9139, prod: 1.0000, rev: 1.2433, ss: 1.0077, co: 0.9409, pcc: 0.8225, lo: 0.9276 },
+  rev:  { opn: 0.6768, ltd: 0.7911, l10: 0.7446, prod: 0.8043, rev: 1.0000, ss: 0.8162, co: 0.7676, pcc: 0.6583, lo: 0.7529 },
+  ss:   { opn: 0.8382, ltd: 0.9732, l10: 0.9080, prod: 0.9923, rev: 1.2252, ss: 1.0000, co: 0.9319, pcc: 0.8078, lo: 0.9170 },
+  co:   { opn: 0.9021, ltd: 1.0343, l10: 0.9676, prod: 1.0628, rev: 1.3027, ss: 1.0731, co: 1.0000, pcc: 0.9032, lo: 0.9922 },
+  pcc:  { opn: 1.0118, ltd: 1.1690, l10: 1.1079, prod: 1.2158, rev: 1.5191, ss: 1.2379, co: 1.1071, pcc: 1.0000, lo: 1.1053 },
+  lo:   { opn: 0.9115, ltd: 1.0446, l10: 0.9748, prod: 1.0781, rev: 1.3282, ss: 1.0905, co: 1.0079, pcc: 0.9047, lo: 1.0000 },
+};
+
+// Map PractiScore division abbreviations (from results tables) to hitfactor.info short names
+const PS_DIV_TO_HFI = {
+  CO: 'co', L: 'ltd', LTD: 'ltd', LO: 'lo', O: 'opn', OPN: 'opn',
+  PCC: 'pcc', REV: 'rev', SS: 'ss', P: 'prod', PROD: 'prod', L10: 'l10',
+  // Full names (from combined view)
+  CARRYOPTICS: 'co', LIMITED: 'ltd', LIMITEDOPTICS: 'lo', OPEN: 'opn',
+  PRODUCTION: 'prod', REVOLVER: 'rev', SINGLESTACK: 'ss',
+};
+
+// Convert a PractiScore division string to hitfactor.info key
+function psDivToHfi(psDiv) {
+  if (!psDiv) return null;
+  const key = psDiv.trim().toUpperCase().replace(/[\s\-]+/g, '');
+  return PS_DIV_TO_HFI[key] || key.toLowerCase();
+}
+
+// Compute field-strength-adjusted stage percentage.
+// Uses cross-division benchmarks to find the best available reference HF,
+// normalizes it to the shooter's division, then computes shooter_hf / normalized_ref_hf.
+//
+// Returns { adjPct, adjClass, refDiv, refClass, refHF, method } or null if not computable.
+function computeAdjustedPct(stage, shooterDiv) {
+  if (!stage.hf || stage.hf <= 0) return null;
+
+  const myDivKey = psDivToHfi(shooterDiv);
+  if (!myDivKey || !DIVISION_FACTORS[myDivKey]) return null;
+
+  const benchmarks = stage.xdiv_benchmarks;
+  if (!benchmarks) return null;
+
+  // Strategy: find the strongest reference point across all divisions.
+  // Priority: GM median > M median > A median > top HF, preferring higher classes.
+  // Then normalize that reference HF to the shooter's division using DIVISION_FACTORS.
+  let bestNormalizedRef = 0;
+  let bestRefDiv = null;
+  let bestRefClass = null;
+  let bestRefHF = null;
+  let bestMethod = null;
+
+  for (const [psDiv, bench] of Object.entries(benchmarks)) {
+    const srcDivKey = psDivToHfi(psDiv);
+    if (!srcDivKey) continue;
+    const factor = DIVISION_FACTORS[myDivKey]?.[srcDivKey];
+    if (!factor) continue;
+
+    // Try each reference level: GM > M > top (which includes A-class winners)
+    const candidates = [
+      { hf: bench.gmMedian, cls: 'GM', method: 'gm_median' },
+      { hf: bench.mMedian,  cls: 'M',  method: 'm_median' },
+      { hf: bench.topHF,    cls: bench.topClass || '?', method: 'top_hf' },
+    ];
+
+    for (const cand of candidates) {
+      if (!cand.hf || cand.hf <= 0) continue;
+      const normalized = cand.hf * factor;
+      if (normalized > bestNormalizedRef) {
+        bestNormalizedRef = normalized;
+        bestRefDiv = psDiv;
+        bestRefClass = cand.cls;
+        bestRefHF = cand.hf;
+        bestMethod = cand.method;
+      }
+    }
+  }
+
+  if (bestNormalizedRef <= 0) return null;
+
+  const adjPct = (stage.hf / bestNormalizedRef) * 100;
+  const adjClass = classLetterForPct(adjPct);
+
+  return {
+    adjPct:   Math.min(adjPct, 120), // cap at 120% to handle outliers
+    adjClass,
+    refDiv:   bestRefDiv,
+    refClass: bestRefClass,
+    refHF:    bestRefHF,
+    normHF:   bestNormalizedRef,
+    method:   bestMethod,
+  };
+}
+
+// Return USPSA classification letter for a given percentage
+function classLetterForPct(pct) {
+  if (pct >= 95) return 'GM';
+  if (pct >= 85) return 'M';
+  if (pct >= 75) return 'A';
+  if (pct >= 60) return 'B';
+  if (pct >= 40) return 'C';
+  if (pct >= 2)  return 'D';
+  return 'U';
+}
+
 // ── USPSA Classifier lookup ───────────────────────────────────────────────────
 // Maps classifier number (e.g. "99-11") → official name.
 // isClassifierStage() checks this table first, then falls back to regex for
@@ -737,6 +845,37 @@ function renderAll() {
     consistencyBox.style.display = 'none';
   }
 
+  // ── Adjusted average stat card ────────────────────────────────────────────
+  // Shows the field-strength-adjusted average % across matches with xdiv data.
+  const adjAvgBox = document.getElementById('statAdjAvgBox');
+  const adjAvgVal = document.getElementById('statAdjAvg');
+  const adjMatchPcts = [];
+  for (const r of viewSorted) {
+    if (!r.stages?.length || !r.division) continue;
+    const adjStages = r.stages
+      .map(s => computeAdjustedPct(s, r.division))
+      .filter(a => a != null);
+    if (!adjStages.length) continue;
+    adjMatchPcts.push(adjStages.reduce((sum, a) => sum + a.adjPct, 0) / adjStages.length);
+  }
+  if (adjMatchPcts.length >= 1) {
+    const adjAvg = adjMatchPcts.reduce((s, v) => s + v, 0) / adjMatchPcts.length;
+    const adjBand = CLASS_BANDS.find(b => adjAvg >= b.min && adjAvg < b.max);
+    adjAvgVal.textContent = adjAvg.toFixed(1) + '%';
+    adjAvgVal.style.color = adjBand?.text.replace('0.55', '1') || '#ff4081';
+    const adjAvgLbl = adjAvgBox.querySelector('.lbl');
+    if (adjAvgLbl) adjAvgLbl.textContent = adjBand ? `Adj Avg · ${adjBand.label} Class` : 'Adj Avg %';
+    adjAvgBox.dataset.tip =
+      `Field-strength adjusted average (${adjMatchPcts.length} match${adjMatchPcts.length > 1 ? 'es' : ''}).\n` +
+      `Uses the best HF from any division at each match,\n` +
+      `normalized to your division using HHF ratios from hitfactor.info.\n` +
+      `This gives a more accurate read when no GM/Master is in your division.\n` +
+      `Raw avg: ${avg.toFixed(1)}% → Adjusted: ${adjAvg.toFixed(1)}% (${adjBand?.label || '?'} class)`;
+    adjAvgBox.style.display = '';
+  } else {
+    adjAvgBox.style.display = 'none';
+  }
+
   // Division stat box — opens a dropdown
   const divStatBox = document.getElementById('statDiv').closest('.stat-box');
   const divStatVal = document.getElementById('statDiv');
@@ -929,8 +1068,34 @@ function renderAll() {
     return { label: div, color: DIV_PALETTE[i % DIV_PALETTE.length], points };
   });
 
+  // Build adjusted % series — one point per match using stage-level cross-division normalization
+  const adjPoints = [];
+  for (const r of viewSorted) {
+    if (!r.stages?.length || !r.division) continue;
+    const adjStages = r.stages
+      .map(s => computeAdjustedPct(s, r.division))
+      .filter(a => a != null);
+    if (!adjStages.length) continue;
+    const adjAvg = adjStages.reduce((sum, a) => sum + a.adjPct, 0) / adjStages.length;
+    adjPoints.push({
+      date: r.date, y: adjAvg, label: r.match_name,
+      division: r.division, class_: classLetterForPct(adjAvg),
+      overall_pct: r.overall_pct,
+    });
+  }
+
+  // Add adjusted series if we have data (dashed line, distinct color)
+  if (adjPoints.length >= 2) {
+    scoreSeries.push({
+      label: 'Adjusted %',
+      color: '#ff4081',
+      dash: true,
+      points: adjPoints,
+    });
+  }
+
   drawMultiSeriesChart(document.getElementById('chartTime'), scoreSeries, allDates, {
-    yLabel: 'Division %', yMin: 0, yMax: 100, invertY: false, trend: true, valueUnit: '%',
+    yLabel: 'Division %', yMin: 0, yMax: 100, invertY: false, trend: scoreSeries.length <= 2, valueUnit: '%',
     showClassBands: true,
   });
 
@@ -1170,8 +1335,23 @@ function renderMatchList() {
                    : match.found_by === 'name'          ? 'named'
                    : 'none';
 
+    // Compute adjusted match % from stage-level cross-division data
+    let adjMatchPct = null;
+    if (hasStages && match.division) {
+      const adjStages = match.stages
+        .map(s => computeAdjustedPct(s, match.division))
+        .filter(a => a != null);
+      if (adjStages.length > 0) {
+        adjMatchPct = adjStages.reduce((sum, a) => sum + a.adjPct, 0) / adjStages.length;
+      }
+    }
+
+    const adjText = adjMatchPct != null
+      ? ` · adj ${fmtPct(adjMatchPct)}`
+      : '';
+
     const scoreText = match.overall_pct != null
-      ? fmtPct(match.overall_pct) + (match.division ? ' · ' + escHtml(match.division) : '') + (match.class_ ? '/' + escHtml(match.class_) : '')
+      ? fmtPct(match.overall_pct) + adjText + (match.division ? ' · ' + escHtml(match.division) : '') + (match.class_ ? '/' + escHtml(match.class_) : '')
       : null;
 
     const metaParts = [match.date];
@@ -1230,6 +1410,7 @@ function renderMatchList() {
       }
 
       const hasGM = match.stages.some(s => s.gm_median_hf != null);
+      const hasXdiv = match.stages.some(s => s.xdiv_benchmarks != null);
 
       // Build table using DOM to avoid XSS on stage names (F1)
       const table = document.createElement('table');
@@ -1238,6 +1419,7 @@ function renderMatchList() {
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
       const headers = ['Stage', 'Time', 'HF', '%'];
+      if (hasXdiv) headers.push('Adj%');
       if (hasGM) headers.push('GM%', 'Acc Loss');
       headers.push('A', 'C', 'D', 'M', 'NS', 'P');
       headers.forEach((h, i) => {
@@ -1246,6 +1428,14 @@ function renderMatchList() {
         if (i > 0) th.style.textAlign = 'right';
         const colClass = { A: 'col-a', C: 'col-c', D: 'col-d', M: 'col-m', NS: 'col-ns', P: 'col-p' }[h];
         if (colClass) th.className = colClass;
+        if (h === 'Adj%') {
+          th.title = 'Field-strength adjusted %\nNormalizes the best HF from any division at this match to your division using HHF ratios, giving you a more accurate classification read regardless of who showed up.';
+          th.style.cursor = 'help';
+        }
+        if (h === '%') {
+          th.title = 'Raw stage % — your HF vs the top HF in your division only.\nInflated when no GM/Master is present in your division.';
+          th.style.cursor = 'help';
+        }
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);
@@ -1284,6 +1474,26 @@ function renderMatchList() {
         // % cell — fmtPct returns safe HTML with color spans
         const pctTd = tr.children[3];
         pctTd.innerHTML = fmtPct(s.pct);
+
+        // Adjusted % cell — field-strength-normalized percentage
+        if (hasXdiv) {
+          const adj = computeAdjustedPct(s, match.division);
+          const adjTd = document.createElement('td');
+          if (adj) {
+            const b = bandForPct(adj.adjPct);
+            const color = b ? b.text.replace('0.55', '1') : '#8a9bb0';
+            adjTd.innerHTML = `<span style="color:${color}">${adj.adjPct.toFixed(1)}% <small style="font-size:9px;opacity:0.75">${adj.adjClass}</small></span>`;
+            // Build detailed tooltip explaining the adjustment
+            const methodLabel = adj.method === 'gm_median' ? 'GM median' : adj.method === 'm_median' ? 'Master median' : 'top shooter';
+            adjTd.title = `Field-adjusted: your HF (${s.hf?.toFixed(4)}) vs ${methodLabel} in ${adj.refDiv} (${adj.refHF?.toFixed(4)} HF)\n`
+              + `Normalized to ${match.division}: ${adj.normHF?.toFixed(4)} HF\n`
+              + `${s.hf?.toFixed(4)} / ${adj.normHF?.toFixed(4)} = ${adj.adjPct.toFixed(1)}% (${adj.adjClass} class)`;
+          } else {
+            adjTd.textContent = '—';
+            adjTd.title = 'No cross-division data available for this stage';
+          }
+          tr.appendChild(adjTd);
+        }
 
         if (hasGM) {
           // GM% cell
@@ -1715,18 +1925,20 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
     const pts = s.points.filter(p => p.y != null);
     if (!pts.length) return;
 
-    ctx.strokeStyle = s.color; ctx.lineWidth = 2;
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.dash ? 1.5 : 2;
+    if (s.dash) ctx.setLineDash([6, 4]);
     ctx.beginPath();
     pts.forEach((p, i) => {
       const cx = dateToCanvasX(p.date), cy = toY(p.y);
       i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
     });
     ctx.stroke();
+    if (s.dash) ctx.setLineDash([]);
 
     pts.forEach(p => {
       const cx = dateToCanvasX(p.date), cy = toY(p.y);
       ctx.fillStyle = s.color;
-      ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, s.dash ? 3 : 4, 0, Math.PI * 2); ctx.fill();
       hitMap.push({ cx, cy, color: s.color, seriesLabel: s.label, valueUnit, ...p });
     });
   });

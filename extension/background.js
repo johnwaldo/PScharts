@@ -487,12 +487,26 @@ function median(arr) {
 }
 
 // ── Fetch stage stats via #resultLevel dropdown (tab already on results/new) ───
-// Also captures all competitor rows to compute GM benchmark HF per stage.
-async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageOptions, push, classifierMap) {
+// Also captures all competitor rows to compute GM benchmark HF per stage,
+// and fetches the Combined (all-divisions) view to find the best HF across
+// all divisions for field-strength-adjusted scoring.
+async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageOptions, push, classifierMap, divisionOptions) {
   if (!stageOptions || !stageOptions.length) {
     push('     no stage options found');
     return null;
   }
+
+  // Find the "Combined" option in the division dropdown (shows all divisions)
+  const combinedOpt = (divisionOptions || []).find(o =>
+    /^(combined|all|overall)$/i.test(o.text.trim()) || o.value === '' || o.value === 'combined'
+  );
+
+  // Find the user's division option to switch back after combined view
+  const userDivOpt = (divisionOptions || []).find(o => {
+    const t = o.text.toLowerCase().replace(/\s+/g, '');
+    const v = (o.value || '').toLowerCase().replace(/\s+/g, '');
+    return t.includes(divKey) || v.includes(divKey);
+  });
 
   push(`     fetching ${stageOptions.length} stage(s)…`);
   const stages = [];
@@ -531,6 +545,62 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       }
     }
 
+    // ── Cross-division benchmark: switch to Combined view to find top HFs across all divisions ──
+    // This gives us the data needed to compute field-strength-adjusted percentages.
+    let xdiv_benchmarks = null;
+    if (combinedOpt) {
+      await runInTab(tabId, setSelectAndFire, ['divisionLevel', combinedOpt.value]);
+      await sleep(900);
+
+      let combinedPage = null;
+      for (let i = 0; i < 4; i++) {
+        combinedPage = await runInTab(tabId, getResultsNewState, [memberNumber || '', name || '']);
+        if (combinedPage._loading) { await sleep(800); continue; }
+        break;
+      }
+
+      const combinedRows = combinedPage?.allCompetitorRows || [];
+      if (combinedRows.length > 0) {
+        // Group by division, find top HF and top HF by class in each division
+        const byDiv = {};
+        for (const row of combinedRows) {
+          const div = (row.division || '').trim().toUpperCase();
+          if (!div || row.hf == null || row.hf <= 0) continue;
+          if (!byDiv[div]) byDiv[div] = { topHF: 0, topClass: '', gmHFs: [], mHFs: [], aHFs: [] };
+          if (row.hf > byDiv[div].topHF) {
+            byDiv[div].topHF = row.hf;
+            byDiv[div].topClass = (row.class_ || '').toUpperCase();
+          }
+          const cls = (row.class_ || '').toUpperCase();
+          if (cls === 'G') byDiv[div].gmHFs.push(row.hf);
+          else if (cls === 'M') byDiv[div].mHFs.push(row.hf);
+          else if (cls === 'A') byDiv[div].aHFs.push(row.hf);
+        }
+
+        // Build compact benchmark object: { DIV: { topHF, topClass, gmMedian, mMedian, aMedian } }
+        xdiv_benchmarks = {};
+        for (const [div, data] of Object.entries(byDiv)) {
+          xdiv_benchmarks[div] = {
+            topHF:    data.topHF,
+            topClass: data.topClass,
+            gmMedian: data.gmHFs.length ? median(data.gmHFs) : null,
+            mMedian:  data.mHFs.length  ? median(data.mHFs)  : null,
+            aMedian:  data.aHFs.length  ? median(data.aHFs)  : null,
+          };
+        }
+
+        const divCount = Object.keys(xdiv_benchmarks).length;
+        const topOverall = Math.max(...Object.values(xdiv_benchmarks).map(b => b.topHF));
+        push(`     ${opt.text}: xdiv ${divCount} div(s), top HF ${topOverall.toFixed(4)}`);
+      }
+
+      // Switch back to user's division for the next stage
+      if (userDivOpt) {
+        await runInTab(tabId, setSelectAndFire, ['divisionLevel', userDivOpt.value]);
+        await sleep(600);
+      }
+    }
+
     stages.push({
       name:            stageName,
       num:             stageNum,
@@ -544,6 +614,7 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       ns:              d.ns ?? 0,
       p:               d.p  ?? 0,
       gm_median_hf,
+      xdiv_benchmarks,
       is_classifier:   null,
       classifier_code: null,
     });
@@ -793,7 +864,7 @@ async function fetchScores(memberNumber, name) {
         ? await fetchMatchDef(match.match_id, push)
         : null;
       const stages = score.overall_pct != null
-        ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push, classifierMap)
+        ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push, classifierMap, score._divisionOptions)
         : null;
       const result = buildResult(match, { ...score, stages }, memberNumber);
       // Only cache when a score was actually found — prevents cache poisoning from wrong credentials
@@ -852,7 +923,7 @@ async function refreshMatch(match, memberNumber, name) {
       ? await fetchMatchDef(match.match_id, push)
       : null;
     const stages = score.overall_pct != null
-      ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push, classifierMap)
+      ? await fetchStageData(tabId, match.match_id, memberNumber, name, score._divKey, score._stageOptions, push, classifierMap, score._divisionOptions)
       : null;
     const result = buildResult(match, { ...score, stages }, memberNumber);
     if (result.overall_pct != null) {
@@ -968,6 +1039,7 @@ async function fetchMatchScore(tabId, matchId, memberNumber, name, push) {
     found_by:    state.found_by,
     _pageMatchType,
     _divOpt:     divOpt,
+    _divisionOptions: state.divisionOptions,
     _stageOptions: stageOptions,
     _divKey:     divKey,
     _stageLinks: stageOptions.map((o, i) => ({ num: i, href: o.value, text: o.text })),
