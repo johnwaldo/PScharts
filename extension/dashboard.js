@@ -10,6 +10,9 @@ function sizeCanvases() {
 window.addEventListener('resize', () => { sizeCanvases(); renderAll(); });
 document.addEventListener('DOMContentLoaded', sizeCanvases);
 
+// ── Version display ───────────────────────────────────────────────────────────
+document.getElementById('headerVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const memberInput  = document.getElementById('memberInput');
 const nameInput    = document.getElementById('nameInput');
