@@ -2008,7 +2008,7 @@ function _downloadPng(canvas, name) {
 }
 
 function exportMatchCard(match) {
-  const DPR = 2, F = 'system-ui,-apple-system,sans-serif';
+  const DPR = 2, F = 'Inter, system-ui, -apple-system, sans-serif';
   const W = 320, PAD = 16;
 
   const probe = document.createElement('canvas').getContext('2d');
@@ -2107,7 +2107,7 @@ function exportMatchCard(match) {
 }
 
 function exportStageCard(match, stage) {
-  const DPR = 2, F = 'system-ui,-apple-system,sans-serif';
+  const DPR = 2, F = 'Inter, system-ui, -apple-system, sans-serif';
   const W = 280, PAD = 14;
 
   const clf         = isClassifierStage(stage);
@@ -2309,7 +2309,7 @@ function formatAge(ts) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const PAD        = { top: 24, right: 52, bottom: 44, left: 48 };
-const FONT       = '11px system-ui, sans-serif';
+const FONT       = '11px Inter, system-ui, sans-serif';
 
 // Read CSS custom properties for canvas drawing (canvas doesn't support var())
 function cssVar(name) {
@@ -2453,9 +2453,9 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
       // Label to the right of the chart area
       const midY = y1 + bh / 2;
       ctx.fillStyle = band.text;
-      ctx.font      = 'bold 11px system-ui, sans-serif';
+      ctx.font      = 'bold 11px Inter, system-ui, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText(band.label, area.x0 + area.w + 6, midY + 3);
+      ctx.fillText(band.label, area.x0 + area.w + 10, midY + 3);
     });
   }
 
@@ -2775,7 +2775,7 @@ function drawLineChart(canvas, points, opts = {}) {
 function drawMessage(canvas, msg) {
   const ctx = canvas.getContext('2d');
   clearCanvas(ctx, canvas);
-  ctx.fillStyle = TEXT_COLOR(); ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = TEXT_COLOR(); ctx.font = '13px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
 }
 
