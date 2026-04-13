@@ -187,6 +187,27 @@
     .time-btn:hover { border-color: #4a9eff; color: #ccc; }
     .time-btn.active { background: #1e3a5f; border-color: #4a9eff; color: #4a9eff; }
 
+    .date-range-form {
+      padding: 8px 14px 12px;
+      border-top: 1px solid #2a2d3a;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .date-range-form label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; }
+    .date-range-form input[type="date"] {
+      background: #131620; border: 1px solid #2a2d3a; border-radius: 4px;
+      color: #ccc; font-size: 12px; padding: 4px 8px; width: 100%;
+      color-scheme: dark;
+    }
+    .date-range-form input[type="date"]:focus { outline: none; border-color: #4a9eff; }
+    .date-range-form .dr-apply {
+      margin-top: 4px; padding: 5px 12px; align-self: flex-end;
+      border-radius: 4px; border: 1px solid #4a9eff;
+      background: none; color: #4a9eff; font-size: 12px; cursor: pointer;
+    }
+    .date-range-form .dr-apply:hover { background: #1e3a5f; }
+
     #viewToggle { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
     .view-btn {
       padding: 8px 16px;

@@ -200,8 +200,9 @@ async function restoreFromSync() {
 let allResults       = [];
 let currentView      = 'ranked'; // 'ranked' | 'all'
 let deselectedMatches = new Set(); // match IDs manually excluded from charts
-let selectedDiv      = null;     // division filter for stats + charts (null = All)
-let selectedYear     = null;     // year filter for charts (null = All Time)
+let selectedDiv       = null;     // division filter for stats + charts (null = All)
+let selectedYear      = null;     // year filter for charts (null = All Time)
+let selectedDateRange = null;    // custom range { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } or null
 let classificationData = null;  // data from uspsa.org/classification/[memberNumber]
 let classifiersOnly  = false;   // when true, charts show only classifier stage scores
 
@@ -771,39 +772,84 @@ fetchBtn.addEventListener('click', async () => {
 });
 
 // ── Year filter pills ─────────────────────────────────────────────────────────
+// ── Year / date-range filter pill ────────────────────────────────────────────
 function renderYearFilter(years) {
   const el = document.getElementById('timeFilter');
   el.innerHTML = '';
   if (years.length === 0) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
 
+  const isCustom = !!selectedDateRange;
+  const label    = isCustom
+    ? `${selectedDateRange.start} – ${selectedDateRange.end}`
+    : selectedYear || 'All Time';
+
   const pill = document.createElement('button');
-  pill.className = 'time-btn' + (selectedYear ? ' active' : '');
-  pill.textContent = selectedYear || 'All Time';
+  pill.className = 'time-btn' + (selectedYear || isCustom ? ' active' : '');
+  pill.textContent = label;
+
   pill.onclick = (e) => {
     e.stopPropagation();
     const existing = el.querySelector('.div-dropdown');
     if (existing) { existing.remove(); return; }
+
     const dropdown = document.createElement('div');
     dropdown.className = 'div-dropdown';
+
+    // Standard year options
     ['All Time', ...years].forEach(y => {
       const item = document.createElement('div');
-      item.className = 'div-dropdown-item' + ((y === 'All Time' && !selectedYear) || y === selectedYear ? ' selected' : '');
+      item.className = 'div-dropdown-item' +
+        ((y === 'All Time' && !selectedYear && !isCustom) || y === selectedYear ? ' selected' : '');
       item.textContent = y;
       item.onclick = (ev) => {
         ev.stopPropagation();
         selectedYear = y === 'All Time' ? null : y;
+        selectedDateRange = null;
         dropdown.remove();
         renderAll();
       };
       dropdown.appendChild(item);
     });
+
+    // Custom range entry
+    const customItem = document.createElement('div');
+    customItem.className = 'div-dropdown-item' + (isCustom ? ' selected' : '');
+    customItem.textContent = 'Custom Range…';
+    customItem.onclick = (ev) => {
+      ev.stopPropagation();
+      if (dropdown.querySelector('.date-range-form')) return;
+      const form = document.createElement('div');
+      form.className = 'date-range-form';
+      form.innerHTML = `
+        <label>From</label>
+        <input type="date" class="dr-from" value="${selectedDateRange?.start || ''}">
+        <label>To</label>
+        <input type="date" class="dr-to"   value="${selectedDateRange?.end   || ''}">
+        <button class="dr-apply">Apply</button>
+      `;
+      form.addEventListener('click', ev2 => ev2.stopPropagation());
+      form.querySelector('.dr-apply').onclick = () => {
+        const start = form.querySelector('.dr-from').value;
+        const end   = form.querySelector('.dr-to').value;
+        if (start && end && start <= end) {
+          selectedDateRange = { start, end };
+          selectedYear = null;
+          dropdown.remove();
+          renderAll();
+        }
+      };
+      dropdown.appendChild(form);
+    };
+    dropdown.appendChild(customItem);
+
     el.appendChild(dropdown);
     setTimeout(() => document.addEventListener('click', function close() {
       dropdown.remove();
       document.removeEventListener('click', close);
     }, { once: true }), 0);
   };
+
   el.appendChild(pill);
 }
 
@@ -867,10 +913,11 @@ function renderAll() {
   const years = [...new Set(sorted.map(r => r.date?.slice(0, 4)).filter(Boolean))].sort();
   if (selectedYear && !years.includes(selectedYear)) selectedYear = null;
 
-  // Filter to selected division + year for stats + charts
+  // Filter to selected division + year/range for stats + charts
   const viewSorted = sorted.filter(r =>
-    (!selectedDiv || (r.division || 'Unknown') === selectedDiv) &&
-    (!selectedYear || r.date?.startsWith(selectedYear))
+    (!selectedDiv       || (r.division || 'Unknown') === selectedDiv) &&
+    (!selectedYear      || r.date?.startsWith(selectedYear)) &&
+    (!selectedDateRange || (r.date >= selectedDateRange.start && r.date <= selectedDateRange.end))
   );
 
   const avg  = viewSorted.reduce((s, r) => s + (r.overall_pct ?? 0), 0) / (viewSorted.length || 1);
