@@ -352,7 +352,7 @@
     .match-score { font-size: 14px; font-weight: 600; color: #4a9eff; white-space: nowrap; flex-shrink: 0; }
     .match-score.none { color: #555; font-weight: 400; font-size: 13px; }
 
-    .refresh-btn, .expand-btn {
+    .refresh-btn {
       padding: 6px 10px;
       border-radius: 4px;
       border: 1px solid #2a2d3a;
@@ -364,10 +364,69 @@
       flex-shrink: 0;
       min-height: 32px;
     }
-    .expand-btn { font-size: 12px; }
-    .refresh-btn:hover, .expand-btn:hover { color: #4a9eff; border-color: #4a9eff; }
+    .refresh-btn:hover { color: #4a9eff; border-color: #4a9eff; }
     .refresh-btn:disabled { opacity: 0.3; cursor: default; }
     .refresh-btn.spinning { display: inline-block; animation: spin 0.8s linear infinite; }
+
+    .expand-btn {
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 4px 2px;
+    }
+    .expand-btn:hover { color: #4a9eff; }
+    .expand-placeholder { width: 20px; flex-shrink: 0; display: inline-block; }
+
+    .export-btn {
+      padding: 4px 7px;
+      border-radius: 4px;
+      border: 1px solid #2a2d3a;
+      background: none;
+      color: #555;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+    }
+    .export-btn:hover { color: #4caf50; border-color: #4caf50; }
+
+    /* ── Export menu ── */
+    #exportMenu {
+      position: fixed;
+      display: none;
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 2000;
+      min-width: 210px;
+      overflow: hidden;
+    }
+    .export-menu-title {
+      padding: 6px 14px;
+      font-size: 10px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #1e2130;
+    }
+    .export-menu-item {
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #ccc;
+      border-bottom: 1px solid #1a1d27;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .export-menu-item:last-child { border-bottom: none; }
+    .export-menu-item:hover { background: #1e2235; color: #4caf50; }
 
     /* ── Stage panel ── */
     .match-item { margin-bottom: 6px; }
@@ -969,6 +1028,7 @@
 <div id="debugLog"></div>
 
 </div>
+<div id="exportMenu"></div>
 <div id="tooltip"></div>
 <script src="dashboard.js"></script>
 </body>
