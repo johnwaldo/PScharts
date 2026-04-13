@@ -676,6 +676,10 @@ document.getElementById('classifiersOnlyChk').addEventListener('change', e => {
   renderAll();
 });
 
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  exportChartCSV();
+});
+
 // ── Fetch button ──────────────────────────────────────────────────────────────
 fetchBtn.addEventListener('click', async () => {
   const memberNumber = memberInput.value.trim().toUpperCase();
@@ -1861,6 +1865,83 @@ function updateStatusCounts(verb) {
   const unconfirmedNote  = unconfirmed.length > 0 ? ` · ${unconfirmed.length} unconfirmed type` : '';
   const skippedNote      = nonUspsa.length > 0    ? ` · ${nonUspsa.length} non-USPSA excluded` : '';
   setStatus(`${prefix} ${uspsa} USPSA match(es) — ${scored} with scores${checkedNote}.${unconfirmedNote}${skippedNote}`, 'success');
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────────
+// Exports chart-visible match data as a flat CSV (one row per stage).
+// Respects the active division / year / custom date-range filter.
+// Includes USPSA clf_pct when available (official % vs national reference HF).
+function exportChartCSV() {
+  const uspsaBase = allResults.filter(r => isChartable(r) && !deselectedMatches.has(r.match_id));
+  const chartable = currentView === 'ranked'
+    ? uspsaBase.filter(r => r.found_by === 'member_number' && r.overall_pct != null)
+    : uspsaBase.filter(r => r.overall_pct != null || r.hf != null);
+  const sorted = [...chartable].sort((a, b) => {
+    const da = parseDate(a.date), db = parseDate(b.date);
+    return (da && db) ? da - db : 0;
+  });
+  const viewSorted = sorted.filter(r =>
+    (!selectedDiv       || (r.division || 'Unknown') === selectedDiv) &&
+    (!selectedYear      || r.date?.startsWith(selectedYear)) &&
+    (!selectedDateRange || (r.date >= selectedDateRange.start && r.date <= selectedDateRange.end))
+  );
+
+  // Flat format: one row per stage (match-level fields repeated).
+  // In classifiersOnly mode, only classifier stages are included.
+  const headers = [
+    'Date', 'Match', 'Division', 'Class', 'Overall %', 'Div %', 'Place', 'Div Place',
+    'Stage', 'Stage HF', 'Stage Match %', 'Stage Time', 'A', 'C', 'D', 'M', 'NS', 'P',
+    'CM #', 'CM Name', 'USPSA %',
+  ];
+  const rows = [headers];
+
+  for (const r of viewSorted) {
+    const matchCols = [
+      r.date        || '',
+      r.match_name  || '',
+      r.division    || '',
+      r.class_      || '',
+      r.overall_pct != null ? r.overall_pct.toFixed(2) : '',
+      r.div_pct     != null ? r.div_pct.toFixed(2)     : '',
+      r.place       != null ? r.place                   : '',
+      r.div_place   != null ? r.div_place               : '',
+    ];
+
+    if (!r.stages?.length) {
+      if (!classifiersOnly) rows.push([...matchCols, '', '', '', '', '', '', '', '', '', '', '', '']);
+      continue;
+    }
+
+    for (const s of r.stages) {
+      const clf = isClassifierStage(s);
+      if (classifiersOnly && !clf) continue;
+      rows.push([
+        ...matchCols,
+        s.name  || '',
+        s.hf    != null ? s.hf.toFixed(4)   : '',
+        s.pct   != null ? s.pct.toFixed(2)  : '',
+        s.time  != null ? s.time.toFixed(2) : '',
+        s.a  ?? '', s.c  ?? '', s.d  ?? '',
+        s.m  ?? '', s.ns ?? '', s.p  ?? '',
+        clf?.number || '',
+        clf?.name   || '',
+        s.clf_pct != null ? s.clf_pct.toFixed(2) : '',
+      ]);
+    }
+  }
+
+  const csv      = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const dateTag  = selectedDateRange
+    ? `${selectedDateRange.start} to ${selectedDateRange.end}`
+    : selectedYear || 'all time';
+  const filename = (classifiersOnly ? 'pscharts_classifiers' : 'pscharts_scores') + ` ${dateTag}.csv`;
+  const blob     = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url      = URL.createObjectURL(blob);
+  const a        = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function parseDate(str) {

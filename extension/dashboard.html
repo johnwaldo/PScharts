@@ -236,6 +236,18 @@
       justify-content: space-between;
       margin-bottom: 12px;
     }
+    #exportCsvBtn {
+      margin-left: auto;
+      margin-right: 12px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid #2a2d3a;
+      background: none;
+      color: #555;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    #exportCsvBtn:hover { color: #4caf50; border-color: #4caf50; }
     .chart-section h3 {
       font-size: 12px;
       font-weight: 600;
@@ -901,6 +913,7 @@
   <div class="chart-section">
     <div class="chart-section-header">
       <h3 id="chartTimeTitle">Score Over Time</h3>
+      <button id="exportCsvBtn" title="Export chart data as CSV">⤓ CSV</button>
       <label id="classifiersToggleWrap">
         <span class="toggle-lbl">Classifiers Only</span>
         <span class="toggle-switch">
