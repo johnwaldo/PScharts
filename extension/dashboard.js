@@ -2309,7 +2309,7 @@ function formatAge(ts) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const PAD        = { top: 24, right: 52, bottom: 44, left: 48 };
-const FONT       = '10px system-ui, sans-serif';
+const FONT       = '11px system-ui, sans-serif';
 
 // Read CSS custom properties for canvas drawing (canvas doesn't support var())
 function cssVar(name) {
@@ -2322,12 +2322,12 @@ function CHART_BG()   { return cssVar('--chart-bg'); }
 
 // USPSA classification bands (% thresholds)
 const CLASS_BANDS = [
-  { label: 'GM', min: 95,  max: 110, weight: 6, fill: 'rgba(255,215,0,0.07)',    text: 'rgba(255,215,0,0.55)' },
-  { label: 'M',  min: 85,  max: 95,  weight: 5, fill: 'rgba(192,192,192,0.07)', text: 'rgba(192,192,192,0.55)' },
-  { label: 'A',  min: 75,  max: 85,  weight: 4, fill: 'rgba(74,158,255,0.07)',  text: 'rgba(74,158,255,0.55)' },
-  { label: 'B',  min: 60,  max: 75,  weight: 3, fill: 'rgba(76,175,80,0.07)',   text: 'rgba(76,175,80,0.55)' },
-  { label: 'C',  min: 40,  max: 60,  weight: 2, fill: 'rgba(255,152,0,0.07)',   text: 'rgba(255,152,0,0.55)' },
-  { label: 'D',  min: 0,   max: 40,  weight: 1, fill: 'rgba(120,120,120,0.07)', text: 'rgba(120,120,120,0.55)' },
+  { label: 'GM', min: 95,  max: 110, weight: 6, fill: 'rgba(255,215,0,0.08)',    text: 'rgba(255,215,0,0.85)' },
+  { label: 'M',  min: 85,  max: 95,  weight: 5, fill: 'rgba(192,192,192,0.08)', text: 'rgba(192,192,192,0.85)' },
+  { label: 'A',  min: 75,  max: 85,  weight: 4, fill: 'rgba(74,158,255,0.08)',  text: 'rgba(74,158,255,0.85)' },
+  { label: 'B',  min: 60,  max: 75,  weight: 3, fill: 'rgba(76,175,80,0.08)',   text: 'rgba(76,175,80,0.85)' },
+  { label: 'C',  min: 40,  max: 60,  weight: 2, fill: 'rgba(255,152,0,0.08)',   text: 'rgba(255,152,0,0.85)' },
+  { label: 'D',  min: 0,   max: 40,  weight: 1, fill: 'rgba(120,120,120,0.08)', text: 'rgba(120,120,120,0.85)' },
 ];
 
 function bandForPct(pct) {
@@ -2453,7 +2453,7 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
       // Label to the right of the chart area
       const midY = y1 + bh / 2;
       ctx.fillStyle = band.text;
-      ctx.font      = 'bold 9px system-ui, sans-serif';
+      ctx.font      = 'bold 11px system-ui, sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(band.label, area.x0 + area.w + 6, midY + 3);
     });
