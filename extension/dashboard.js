@@ -1,5 +1,8 @@
 // dashboard.js
 
+// ── Global state (declared first to avoid TDZ in event handlers below) ────────
+let allResults = [];
+
 // ── Size canvases to fill their containers ────────────────────────────────────
 function sizeCanvases() {
   document.querySelectorAll('canvas').forEach(c => {
@@ -197,7 +200,7 @@ async function restoreFromSync() {
 }
 
 // ── Module state ──────────────────────────────────────────────────────────────
-let allResults       = [];
+// allResults declared at top of file to prevent TDZ in early event handlers
 let currentView      = 'ranked'; // 'ranked' | 'all'
 let deselectedMatches = new Set(); // match IDs manually excluded from charts
 let selectedDiv       = null;     // division filter for stats + charts (null = All)

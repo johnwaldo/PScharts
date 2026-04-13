@@ -39,6 +39,19 @@
       letter-spacing: 0.3px;
       flex-shrink: 0;
     }
+    #themeToggle {
+      background: none;
+      border: 1px solid #2a2d3a;
+      border-radius: 6px;
+      color: #666;
+      font-size: 16px;
+      padding: 4px 8px;
+      cursor: pointer;
+      line-height: 1;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    #themeToggle:hover { color: #ccc; border-color: #4a9eff; }
 
     /* ── Controls ── */
     .controls {
@@ -851,6 +864,7 @@
 <header>
   <h1>USPSA Score Progression</h1>
   <span id="headerVersion"></span>
+  <button id="themeToggle" title="Toggle light/dark mode">&#9788;</button>
 </header>
 
 <div class="controls">
