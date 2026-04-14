@@ -32,9 +32,13 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 
 **Division %** is your score relative to the top shooter in your division at that match. It tells you how you placed that day, but it only reflects who happened to show up in your division — if no GM competed in your division, even a mediocre performance can read as 90%+.
 
-**Adjusted %** is a field-strength correction. It finds the strongest competitor across *all* divisions at that match, translates their hit factor to your division's equivalent using national HHF ratios from [hitfactor.info](https://hitfactor.info), and measures you against that benchmark. A 75% adjusted score means you competed at solid A-class level against the actual talent at that match — regardless of which divisions they were in.
+**Adjusted %** is a field-strength correction calculated in two steps:
 
-Adjusted % is the better indicator of actual improvement over time. Division % tells you how you placed; adjusted % tells you how good you actually were.
+1. **Own division first** — if a GM or Master competed in your division at that match, their median hit factor is used as the reference directly. No cross-division math needed; you're measured against the actual elite competition that was present.
+
+2. **Cross-division fallback** — if no GM or Master competed in your division, the extension finds the strongest competitor across all other divisions (GM median preferred, then Master, then top HF), translates their hit factor to your division's equivalent using national HHF ratios from [hitfactor.info](https://hitfactor.info), and uses that as the reference. This corrects for weak-field matches where winning your division by default would otherwise inflate the score.
+
+A 75% adjusted score means you performed at solid A-class level against the strongest competition at that match — whether they were in your division or another. Adjusted % is the better indicator of actual improvement over time because it accounts for who actually showed up, not just who showed up in your specific division.
 
 ---
 
