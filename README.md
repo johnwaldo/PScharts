@@ -1,8 +1,8 @@
-# PScharts
+# Hit Factor Charts
 
 A Chrome extension that pulls your USPSA match results from PractiScore and displays them as interactive charts — score over time, placement, classifier tracking, and per-stage breakdowns — all inside your browser, with no server or API key required.
 
-![Alt text](/screenshots/PScharts.png?raw=true "PScharts Screenshot")
+![Hit Factor Charts](/screenshots/PScharts.png?raw=true "Hit Factor Charts")
 ---
 
 ## Features
@@ -57,14 +57,14 @@ Chrome does not allow side-loading extensions from a zip file directly, so you l
 
 **Option A — Download a release (recommended)**
 
-1. Go to the [Releases page](https://github.com/johnwaldo/PScharts/releases)
-2. Download the latest `PScharts.zip`
+1. Go to the [Releases page](https://github.com/johnwaldo/hitfactorcharts/releases)
+2. Download the latest `HitFactorCharts.zip`
 3. Unzip the archive anywhere on your computer
 
 **Option B — Clone the repo**
 
 ```bash
-git clone https://github.com/johnwaldo/PScharts.git
+git clone https://github.com/johnwaldo/hitfactorcharts.git
 ```
 
 ### 2 — Open Chrome Extensions
@@ -83,7 +83,7 @@ In the top-right corner of the Extensions page, toggle on **Developer mode**.
 2. Navigate to the unzipped folder — if you used Option A (release ZIP), select the top-level unzipped folder; if you used Option B (cloned repo), select the `extension/` subfolder (the one containing `manifest.json`)
 3. Click **Select Folder**
 
-The PScharts icon will appear in your Chrome toolbar. Pin it for easy access via the puzzle-piece menu.
+The Hit Factor Charts icon will appear in your Chrome toolbar. Pin it for easy access via the puzzle-piece menu.
 
 ---
 
@@ -91,7 +91,7 @@ The PScharts icon will appear in your Chrome toolbar. Pin it for easy access via
 
 1. **Log in to PractiScore** — visit [practiscore.com](https://practiscore.com) and sign in normally. The extension uses your existing browser session.
 
-2. **Open PScharts** — click the PScharts icon in the toolbar. The dashboard opens in a new tab.
+2. **Open Hit Factor Charts** — click the Hit Factor Charts icon in the toolbar. The dashboard opens in a new tab.
 
 3. **Enter your member number and/or name** — type your USPSA member number (e.g. `A12345`) and/or your name as it appears on result sheets (e.g. `Smith, Jane`). At least one is required; providing both improves match accuracy.
 
@@ -166,7 +166,7 @@ A helper script is included to package the extension for distribution:
 ./build.sh
 ```
 
-This creates `dist/pscharts.zip` containing only the extension files, ready to share or submit to the Chrome Web Store.
+This creates `dist/HitFactorCharts.zip` containing only the extension files, ready to share or submit to the Chrome Web Store.
 
 ---
 
@@ -184,5 +184,5 @@ extension/          ← Load this folder in Chrome
     icon16.png
     icon48.png
     icon128.png
-build.sh            ← Packages extension/ into dist/pscharts.zip
+build.sh            ← Packages extension/ into dist/HitFactorCharts.zip
 ```

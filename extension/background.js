@@ -24,7 +24,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.action === 'fetchClassification') {
-    fetchUSPSAClassification(msg.memberNumber, m => console.log('[PScharts]', m))
+    fetchUSPSAClassification(msg.memberNumber, m => console.log('[HFC]', m))
       .then(async data => {
         if (data && !data._not_logged_in) {
           const stored = { ...data, member_number: msg.memberNumber, updated_at: Date.now() };
@@ -451,8 +451,8 @@ async function fetchMatchDef(matchId, push) {
     if (!Array.isArray(raw) || !raw.length) { push('     match_def: no stages array'); return null; }
 
     // Log the first stage's full key set so we can identify the real field names
-    console.log('[PScharts] match_def stage[0] keys:', Object.keys(raw[0]));
-    console.log('[PScharts] match_def stage[0]:', JSON.stringify(raw[0]));
+    console.log('[HFC] match_def stage[0] keys:', Object.keys(raw[0]));
+    console.log('[HFC] match_def stage[0]:', JSON.stringify(raw[0]));
 
     const map = new Map();
     raw.forEach((s, idx) => {
@@ -761,9 +761,9 @@ async function fetchUSPSAClassification(memberNumber, push) {
     }
 
     // Log compact debug info — tables and division select only
-    console.log('[PScharts] USPSA page debug:', JSON.stringify(state._debug, null, 2));
+    console.log('[HFC] USPSA page debug:', JSON.stringify(state._debug, null, 2));
     // Log the actual parsed classifier records so we can verify dates/pcts/codes
-    console.log('[PScharts] USPSA classifiers parsed:', JSON.stringify(state.classifiers, null, 2));
+    console.log('[HFC] USPSA classifiers parsed:', JSON.stringify(state.classifiers, null, 2));
 
     const clf = state?.classifiers?.length ?? 0;
     push(`  Found ${clf} classifier record(s) for ${memberNumber}`);
@@ -777,7 +777,7 @@ async function fetchUSPSAClassification(memberNumber, push) {
       if (!triggered) { push(`  Calculator not found — skipping division loop`); break; }
       await sleep(1200);
       const result = await runInTab(tabId, readCalculatorResult);
-      console.log(`[PScharts] Calculator result for ${opt.text}:`, JSON.stringify(result));
+      console.log(`[HFC] Calculator result for ${opt.text}:`, JSON.stringify(result));
       if (result?.text) push(`  ${opt.text}: ${result.text.slice(0, 80)}`);
     }
 
@@ -794,7 +794,7 @@ async function fetchUSPSAClassification(memberNumber, push) {
 // ── Fetch all match scores ────────────────────────────────────────────────────
 async function fetchScores(memberNumber, name) {
   const log = [];
-  const push = m => { log.push(m); console.log('[PScharts]', m); };
+  const push = m => { log.push(m); console.log('[HFC]', m); };
   let tabId = null;
 
   try {
@@ -813,7 +813,7 @@ async function fetchScores(memberNumber, name) {
 
     const rawMatchList = await runInTab(tabId, extractMatchList);
     push(`Found ${rawMatchList.length} match(es).`);
-    console.log('[PScharts] matchList:', JSON.stringify(rawMatchList, null, 2));
+    console.log('[HFC] matchList:', JSON.stringify(rawMatchList, null, 2));
 
     if (rawMatchList.length === 0) {
       push('No matches found — are you logged into PractiScore?');
@@ -905,7 +905,7 @@ async function fetchScores(memberNumber, name) {
 // ── Refresh a single match ────────────────────────────────────────────────────
 async function refreshMatch(match, memberNumber, name) {
   const log = [];
-  const push = m => { log.push(m); console.log('[PScharts]', m); };
+  const push = m => { log.push(m); console.log('[HFC]', m); };
   let tabId = null;
 
   try {

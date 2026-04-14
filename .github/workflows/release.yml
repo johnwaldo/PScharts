@@ -37,7 +37,7 @@ jobs:
           # Zip contents directly — no version in the folder name so users
           # can unzip over the same 'extension/' folder and just refresh.
           cd extension
-          zip -r ../PScharts.zip .
+          zip -r ../HitFactorCharts.zip .
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
@@ -53,6 +53,6 @@ jobs:
           fi
 
           gh release create "${{ steps.version.outputs.tag }}" \
-            "PScharts.zip" \
-            --title "PScharts v${{ steps.version.outputs.version }}" \
+            "HitFactorCharts.zip" \
+            --title "Hit Factor Charts v${{ steps.version.outputs.version }}" \
             --notes "${NOTES:-No notable changes.}"
