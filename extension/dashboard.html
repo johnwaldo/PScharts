@@ -341,6 +341,22 @@
 
     canvas { display: block; width: 100% !important; }
 
+    /* ── Chart data summaries ── */
+    .chart-summary {
+      margin-top: 10px;
+      padding: 9px 14px;
+      font-size: 12px;
+      color: #777;
+      line-height: 1.7;
+      border-top: 1px solid #252838;
+    }
+    .chart-summary--adj { border-top-style: dashed; border-top-color: #1e2130; }
+    .chart-summary .s-val  { color: #e0e0e0; font-weight: 600; }
+    .chart-summary .s-up   { color: #4caf50; font-weight: 600; }
+    .chart-summary .s-down { color: #ff6b6b; font-weight: 600; }
+    .chart-summary .s-flat { color: #888;    font-weight: 500; }
+    .chart-summary .s-note { font-size: 11px; opacity: 0.6; }
+
     /* ── Chart explanatory note ── */
     .chart-note {
       margin-top: 14px;
@@ -990,6 +1006,9 @@
     [data-theme="light"] .chart-note { background: #f0f2f7; border-left-color: #c0c4cc; color: #5a6478; }
     [data-theme="light"] .chart-note strong { color: #2c3040; }
     [data-theme="light"] .chart-note em { color: #4a5060; }
+    [data-theme="light"] .chart-summary { color: #5a6478; border-top-color: #d8dce6; }
+    [data-theme="light"] .chart-summary--adj { border-top-color: #e0e2e8; }
+    [data-theme="light"] .chart-summary .s-val { color: #1a1d27; }
     [data-theme="light"] #exportCsvBtn { color: #8a9bb0; border-color: #d0d4dc; }
     [data-theme="light"] #exportCsvBtn:hover { color: #16a34a; border-color: #16a34a; }
     [data-theme="light"] .date-range-form { border-top-color: #e0e2e8; }
@@ -1195,6 +1214,8 @@
       <strong>Adjusted %</strong> is a field-strength correction: it finds the strongest competitor across <em>all</em> divisions at that match (GM median hit factor preferred, then Master, then top HF), translates their score to your division's equivalent using national HHF ratios from hitfactor.info, and measures you against that benchmark.
       Adjusted % is the more meaningful number — a 75% adjusted score means you competed at solid A-class level against the actual talent at that match, regardless of whether any GM or Master was shooting your division.
     </div>
+    <div class="chart-summary" id="chartTimeSummary" style="display:none"></div>
+    <div class="chart-summary chart-summary--adj" id="chartAdjSummary" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartPlaceSection">
     <div class="chart-section-header">
@@ -1202,6 +1223,7 @@
       <span id="chartPlaceSubtitle" style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:0.5px"></span>
     </div>
     <canvas id="chartPlace" height="180"></canvas>
+    <div class="chart-summary" id="chartPlaceSummary" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartNonClfSection" style="display:none">
     <div class="chart-section-header">
@@ -1216,6 +1238,7 @@
       <span style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:0.5px">Are your classifier scores tracking your match performance?</span>
     </div>
     <canvas id="chartClfOverlay" height="200"></canvas>
+    <div class="chart-summary" id="chartClfSummary" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartAccuracySection" style="display:none">
     <div class="chart-section-header">
