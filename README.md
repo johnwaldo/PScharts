@@ -2,7 +2,12 @@
 
 A Chrome extension that pulls your USPSA match results from PractiScore and displays them as interactive charts — score over time, placement, classifier tracking, and per-stage breakdowns — all inside your browser, with no server or API key required.
 
-![Hit Factor Charts](/screenshots/PScharts.png?raw=true "Hit Factor Charts")
+![Hit Factor Charts](/screenshots/top.png?raw=true "Hit Factor Charts — Score Over Time")
+
+![Hit Factor Charts — Analytics](/screenshots/bottom.png?raw=true "Hit Factor Charts — Full Analytics Suite")
+
+*Screenshots taken at v1.5.5. Current version is v1.6.*
+
 ---
 
 ## Features
