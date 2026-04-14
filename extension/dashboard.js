@@ -253,10 +253,24 @@ function psDivToHfi(psDiv) {
 }
 
 // Compute field-strength-adjusted stage percentage.
-// Uses cross-division benchmarks to find the best available reference HF,
-// normalizes it to the shooter's division, then computes shooter_hf / normalized_ref_hf.
 //
-// Returns { adjPct, adjClass, refDiv, refClass, refHF, method } or null if not computable.
+// Two-pass strategy:
+//   Pass 1 — own division first. If the shooter's division has a GM or M median
+//             HF on this stage, use it directly (factor = 1.0, no normalization
+//             error). This is the most accurate reference: an actual classified
+//             competitor in the shooter's division who was standing at the same
+//             match. Cross-division normalization should never override a real
+//             own-division benchmark — the national HHF factors are averages and
+//             will systematically inflate or deflate the reference when the actual
+//             GM present is above or below the national mean.
+//
+//   Pass 2 — cross-division fallback. Only used when the shooter's division has
+//             no GM or M class benchmark (i.e. no elite competitor was present).
+//             Finds the highest reference across other divisions and normalizes it
+//             to the shooter's division using DIVISION_FACTORS (hitfactor.info
+//             March 2025 national HHFs). This corrects for weak-field matches.
+//
+// Returns { adjPct, adjClass, refDiv, refClass, refHF, normHF, method } or null.
 function computeAdjustedPct(stage, shooterDiv) {
   if (!stage.hf || stage.hf <= 0) return null;
 
@@ -266,9 +280,30 @@ function computeAdjustedPct(stage, shooterDiv) {
   const benchmarks = stage.xdiv_benchmarks;
   if (!benchmarks) return null;
 
-  // Strategy: find the strongest reference point across all divisions.
-  // Priority: GM median > M median > A median > top HF, preferring higher classes.
-  // Then normalize that reference HF to the shooter's division using DIVISION_FACTORS.
+  // ── Pass 1: own-division GM or M ─────────────────────────────────────────
+  // Find the benchmark entry whose division key matches the shooter's division.
+  for (const [psDiv, bench] of Object.entries(benchmarks)) {
+    if (psDivToHfi(psDiv) !== myDivKey) continue;
+    // Prefer GM median; fall back to M median.
+    const ref    = bench.gmMedian || bench.mMedian;
+    const cls    = bench.gmMedian ? 'GM' : 'M';
+    const method = bench.gmMedian ? 'gm_median' : 'm_median';
+    if (!ref || ref <= 0) break; // own division found but no GM/M — go to pass 2
+    const adjPct = (stage.hf / ref) * 100;
+    return {
+      adjPct:   Math.min(adjPct, 120),
+      adjClass: classLetterForPct(adjPct),
+      refDiv:   psDiv,
+      refClass: cls,
+      refHF:    ref,
+      normHF:   ref,
+      method,
+    };
+  }
+
+  // ── Pass 2: cross-division fallback ───────────────────────────────────────
+  // No GM or M in shooter's division. Estimate from other divisions using
+  // national HHF ratio factors. Takes the highest normalized reference found.
   let bestNormalizedRef = 0;
   let bestRefDiv = null;
   let bestRefClass = null;
@@ -277,14 +312,13 @@ function computeAdjustedPct(stage, shooterDiv) {
 
   for (const [psDiv, bench] of Object.entries(benchmarks)) {
     const srcDivKey = psDivToHfi(psDiv);
-    if (!srcDivKey) continue;
+    if (!srcDivKey || srcDivKey === myDivKey) continue; // own div already checked
     const factor = DIVISION_FACTORS[myDivKey]?.[srcDivKey];
     if (!factor) continue;
 
-    // Try each reference level: GM > M > top (which includes A-class winners)
     const candidates = [
       { hf: bench.gmMedian, cls: 'GM', method: 'gm_median' },
-      { hf: bench.mMedian,  cls: 'M',  method: 'm_median' },
+      { hf: bench.mMedian,  cls: 'M',  method: 'm_median'  },
       { hf: bench.topHF,    cls: bench.topClass || '?', method: 'top_hf' },
     ];
 
@@ -293,10 +327,10 @@ function computeAdjustedPct(stage, shooterDiv) {
       const normalized = cand.hf * factor;
       if (normalized > bestNormalizedRef) {
         bestNormalizedRef = normalized;
-        bestRefDiv = psDiv;
-        bestRefClass = cand.cls;
-        bestRefHF = cand.hf;
-        bestMethod = cand.method;
+        bestRefDiv        = psDiv;
+        bestRefClass      = cand.cls;
+        bestRefHF         = cand.hf;
+        bestMethod        = cand.method;
       }
     }
   }
@@ -304,11 +338,9 @@ function computeAdjustedPct(stage, shooterDiv) {
   if (bestNormalizedRef <= 0) return null;
 
   const adjPct = (stage.hf / bestNormalizedRef) * 100;
-  const adjClass = classLetterForPct(adjPct);
-
   return {
-    adjPct:   Math.min(adjPct, 120), // cap at 120% to handle outliers
-    adjClass,
+    adjPct:   Math.min(adjPct, 120),
+    adjClass: classLetterForPct(adjPct),
     refDiv:   bestRefDiv,
     refClass: bestRefClass,
     refHF:    bestRefHF,
