@@ -33,7 +33,7 @@ const matchRowsEl  = document.getElementById('matchRows');
 const tooltipEl    = document.getElementById('tooltip');
 
 // ── Update check ─────────────────────────────────────────────────────────────
-const RELEASES_API      = 'https://api.github.com/repos/johnwaldo/PScharts/releases/latest';
+const RELEASES_API      = 'https://api.github.com/repos/johnwaldo/hitfactorcharts/releases/latest';
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // re-check at most every 4 hours
 
 function parseVersion(v) {
@@ -83,11 +83,11 @@ async function checkForUpdate() {
     const rawPageUrl   = data.html_url || '';
     const releasePageUrl = /^https:\/\/github\.com\//.test(rawPageUrl)
       ? rawPageUrl
-      : 'https://github.com/johnwaldo/PScharts/releases/latest';
+      : 'https://github.com/johnwaldo/hitfactorcharts/releases/latest';
 
     // Find the ZIP asset — prefer pscharts-*.zip, fall back to any .zip
     const assets  = Array.isArray(data.assets) ? data.assets : [];
-    const zipAsset = assets.find(a => /pscharts.*\.zip$/i.test(a.name))
+    const zipAsset = assets.find(a => /hitfactorcharts.*\.zip$/i.test(a.name) || /\.zip$/i.test(a.name))
                   || assets.find(a => /\.zip$/i.test(a.name));
     // Sanitize asset download URL — must be github.com or objects.githubusercontent.com
     const rawZip  = zipAsset?.browser_download_url || '';
@@ -2267,7 +2267,7 @@ function exportMatchCard(match) {
 
   _dividerLine(ctx, ox + PAD, y, W - PAD * 2); y += 8;
   ctx.font = `10px ${F}`; ctx.fillStyle = '#444';
-  ctx.fillText('PScharts', ox + W - PAD - ctx.measureText('PScharts').width, y + 10);
+  ctx.fillText('Hit Factor Charts', ox + W - PAD - ctx.measureText('Hit Factor Charts').width, y + 10);
 
   _downloadPng(canvas, [match.match_name || 'match', match.date].filter(Boolean).join(' '));
 }
@@ -2373,7 +2373,7 @@ function exportStageCard(match, stage) {
   const fl = _trunc(ctx, [match.match_name, match.date].filter(Boolean).join(' \u00b7 '), W - PAD * 2 - 68);
   ctx.fillText(fl, ox + PAD, y + 10);
   ctx.fillStyle = '#444';
-  ctx.fillText('PScharts', ox + W - PAD - ctx.measureText('PScharts').width, y + 10);
+  ctx.fillText('Hit Factor Charts', ox + W - PAD - ctx.measureText('Hit Factor Charts').width, y + 10);
 
   const stageBase = clf ? `CM ${clf.number} ${normalizeStgName(stage.name)}` : normalizeStgName(stage.name) || 'stage';
   _downloadPng(canvas, [stageBase, match.date].filter(Boolean).join(' '));
@@ -2446,7 +2446,7 @@ function exportChartCSV() {
   const dateTag  = selectedDateRange
     ? `${selectedDateRange.start} to ${selectedDateRange.end}`
     : selectedYear || 'all time';
-  const filename = (classifiersOnly ? 'pscharts_classifiers' : 'pscharts_scores') + ` ${dateTag}.csv`;
+  const filename = (classifiersOnly ? 'hfc_classifiers' : 'hfc_scores') + ` ${dateTag}.csv`;
   const blob     = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url      = URL.createObjectURL(blob);
   const a        = document.createElement('a');

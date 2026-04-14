@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Packages the PScharts Chrome extension into a distributable ZIP.
-# Output: dist/pscharts-vX.Y.Z.zip
+# Packages the Hit Factor Charts Chrome extension into a distributable ZIP.
+# Output: dist/hitfactorcharts-vX.Y.Z.zip
 #
 # Usage:
 #   ./build.sh              — uses version from manifest.json  (e.g. v1.2)
@@ -25,7 +25,7 @@ else
 	LABEL="v${MANIFEST_VERSION}"
 fi
 
-ZIP="$OUT/pscharts-${LABEL}.zip"
+ZIP="$OUT/hitfactorcharts-${LABEL}.zip"
 
 if [ ! -f "$SRC/manifest.json" ]; then
 	echo "Error: extension/manifest.json not found. Run this script from the repo root." >&2
