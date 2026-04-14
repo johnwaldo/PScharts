@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <title>PScharts</title>
@@ -47,7 +47,9 @@
       font-weight: 500;
       letter-spacing: 0.3px;
       flex-shrink: 0;
+      text-decoration: none;
     }
+    #headerVersion:hover { color: #4a9eff; }
     #themeToggle {
       background: none;
       border: 1px solid #2a2d3a;
@@ -141,13 +143,13 @@
     /* ── Summary bar (stats + view toggle) ── */
     .summary-bar {
       display: none;
+      flex-direction: column;
       padding: 20px 24px 16px;
-      gap: 16px;
-      align-items: stretch;
+      gap: 14px;
     }
     .summary-bar.visible { display: flex; }
 
-    #stats { display: flex; gap: 16px; flex: 1; flex-wrap: wrap; align-items: stretch; }
+    #stats { display: flex; gap: 16px; width: 100%; flex-wrap: wrap; align-items: stretch; }
     .stat-box {
       flex: 1;
       min-width: 120px;
@@ -243,19 +245,21 @@
     }
     .date-range-form .dr-apply:hover { background: #1e3a5f; }
 
-    #viewToggle { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    #viewToggle { display: flex; flex-direction: row; gap: 8px; width: 100%; }
     .view-btn {
-      padding: 8px 16px;
-      border-radius: 6px;
+      padding: 7px 18px;
+      border-radius: 20px;
       border: 1px solid #2a2d3a;
       background: #1a1d27;
       color: #777;
       font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
-      min-height: 36px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .view-btn.active { background: #1e3a5f; border-color: #4a9eff; color: #4a9eff; }
+    .view-btn:hover { color: #ccc; border-color: #4a4d5a; }
+    .view-btn.active { background: #4a9eff; border-color: #4a9eff; color: #fff; font-weight: 600; }
 
     /* ── Charts ── */
     #charts { display: none; padding: 8px 0; }
@@ -336,6 +340,20 @@
     #classifiersToggleWrap.active .toggle-lbl { color: #4a9eff; }
 
     canvas { display: block; width: 100% !important; }
+
+    /* ── Chart explanatory note ── */
+    .chart-note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.03);
+      border-left: 3px solid #2a2d3a;
+      border-radius: 0 6px 6px 0;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.7;
+    }
+    .chart-note strong { color: #8a9bb0; font-weight: 600; }
+    .chart-note em { font-style: normal; color: #7a8898; }
 
     /* ── Consistency stat — color-coded by variance level ── */
     .consistency-good { color: #4caf50; }
@@ -921,6 +939,7 @@
      }
     [data-theme="light"] header h1 { color: #1a1d27; }
     [data-theme="light"] #headerVersion { color: #8a9bb0; }
+    [data-theme="light"] #headerVersion:hover { color: #2563eb; }
     [data-theme="light"] #themeToggle { color: #4a5060; border-color: #c0c4cc; }
     [data-theme="light"] #themeToggle:hover { color: #1a1d27; border-color: #2563eb; }
     [data-theme="light"] .controls { border-bottom-color: #e0e2e8; }
@@ -964,9 +983,13 @@
     }
     [data-theme="light"] .time-btn.active { background: #dbeafe; border-color: #2563eb; color: #2563eb; }
     [data-theme="light"] .view-btn { background: #f0f1f4; border-color: #c0c4cc; color: #4a5060; }
+    [data-theme="light"] .view-btn:hover { color: #1a1d27; border-color: #8a9bb0; }
     [data-theme="light"] .view-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
     [data-theme="light"] .chart-section { border-top-color: #e0e2e8; }
     [data-theme="light"] .chart-section h3 { color: #8a9bb0; }
+    [data-theme="light"] .chart-note { background: #f0f2f7; border-left-color: #c0c4cc; color: #5a6478; }
+    [data-theme="light"] .chart-note strong { color: #2c3040; }
+    [data-theme="light"] .chart-note em { color: #4a5060; }
     [data-theme="light"] #exportCsvBtn { color: #8a9bb0; border-color: #d0d4dc; }
     [data-theme="light"] #exportCsvBtn:hover { color: #16a34a; border-color: #16a34a; }
     [data-theme="light"] .date-range-form { border-top-color: #e0e2e8; }
@@ -1033,7 +1056,7 @@
 
 <header>
   <h1>USPSA Score Progression</h1>
-  <span id="headerVersion"></span>
+  <a id="headerVersion" href="https://github.com/johnwaldo/PScharts" target="_blank" rel="noopener noreferrer"></a>
   <button id="themeToggle" title="Toggle light/dark mode">&#9788;</button>
 </header>
 
@@ -1150,6 +1173,7 @@
   </div>
 </div>
 
+
 <div id="timeFilter"></div>
 
 <div id="charts">
@@ -1166,6 +1190,11 @@
       </label>
     </div>
     <canvas id="chartTime" height="380"></canvas>
+    <div class="chart-note">
+      <strong>Division %</strong> is your score relative to the top shooter in your division at that match — it tells you how you placed, but it only reflects who happened to show up in your division that day.
+      <strong>Adjusted %</strong> is a field-strength correction: it finds the strongest competitor across <em>all</em> divisions at that match (GM median hit factor preferred, then Master, then top HF), translates their score to your division's equivalent using national HHF ratios from hitfactor.info, and measures you against that benchmark.
+      Adjusted % is the more meaningful number — a 75% adjusted score means you competed at solid A-class level against the actual talent at that match, regardless of whether any GM or Master was shooting your division.
+    </div>
   </div>
   <div class="chart-section" id="chartPlaceSection">
     <div class="chart-section-header">

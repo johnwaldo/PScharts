@@ -156,14 +156,14 @@ function applyTheme(theme) {
 
 // Restore saved theme (check sync first, then local)
 chrome.storage.sync.get(['theme'], syncData => {
-  const theme = syncData.theme || 'dark';
+  const theme = syncData.theme || 'light';
   applyTheme(theme);
   // Also save to local for fast restore
   chrome.storage.local.set({ theme });
 });
 
 document.getElementById('themeToggle').addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
   const next = current === 'dark' ? 'light' : 'dark';
   applyTheme(next);
   chrome.storage.local.set({ theme: next });
