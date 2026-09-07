@@ -4,6 +4,31 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
+## v1.7.0 — 2026-09-07
+
+### Highlights
+
+- Every analytics chart now includes responsive insight tiles for its primary
+  values, recent comparisons, overall trends, and sample sizes.
+- Classifier insights now include best performance, same-match context, and
+  Pearson correlation when at least three varying paired matches are available.
+
+### Analytics semantics
+
+- Directional metrics now use explicit **Improving**, **Stable**, and
+  **Needs attention** labels, while non-directional metrics use neutral context
+  labels instead of implying progress.
+- Accuracy and hit-zone summaries preserve separate M/NS and combined M+NS
+  source data, exclude procedurals from hit-zone denominators, and leave missing
+  values unavailable instead of treating them as zero.
+- Insight grids now adapt from wide desktop columns to a single-column mobile
+  layout in both light and dark themes without horizontal page overflow.
+
+### Release documentation
+
+- Added the chart-summary metric, threshold, accessibility, and responsive
+  layout contracts to the README and design guide.
+
 ## v1.6.9 — 2026-09-01
 
 ### Added
