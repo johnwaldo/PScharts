@@ -116,14 +116,37 @@ Choose a named USPSA division before fetching scores. The saved selection limits
 
 ### Reading the chart summaries
 
-Below the Score Over Time and Placement charts, plain-English summaries show:
+Compact insight tiles below every analytics chart show the value, comparison
+basis, sample size, and a visible status. Arrows and colour reinforce the words
+**Improving**, **Stable**, and **Needs attention**; they never carry meaning
+alone. Tiles stay synchronized with the selected division, date range,
+Scored/All view, Last 8 setting, match checkboxes, and stage filters.
 
-- **Score trend** — your last 3 matches averaged vs your prior baseline; **Stable** means the change is within ±1.0 percentage point
-- **Adjusted % context** — whether your adjusted average runs above or below your raw division average, and what that means about field strength
-- **Placement** — your average finishing percentile in your division, with recent-vs-prior changes measured in percentage points; **Stable** means within ±1.0 point
-- **Classifier trend** — your recent classifier average vs prior; **Stable** means within ±1.5 points, using the national HHF reference (the only stage-level metric that is directly comparable across different matches and courses)
+- **Score Over Time** — last 3 match average vs the prior baseline, adjusted
+  average vs paired raw results, and least-squares first-to-last trends for raw
+  and adjusted percentages. **Stable** means within ±1.0 percentage point.
+- **Placement Over Time** — average field beaten and last 3 vs the prior
+  baseline. A higher field-beaten percentage is better; **Stable** means within
+  ±1.0 point.
+- **Non-Classifier Stage Trend** — last 3 vs prior and the overall
+  match-relative trend. These are comparisons with each match's top shooter,
+  not USPSA classifications.
+- **Classifier vs Match Score** — recent classifier performance, best
+  classifier, match average when classifiers were present, and Pearson
+  correlation between paired per-match values. Correlation requires at least 3
+  varying pairs, reports `r` and `n`, and describes association rather than
+  causation. Official USPSA percentages are preferred; any match-relative
+  fallback is labelled.
+- **Accuracy Trend** — recent-vs-prior reported A/B/C/D/M/NS counts. Higher A
+  and lower B/C/D/M/NS are treated as improvement.
+- **Hit Zone Breakdown** — average A/B/C/D/M/NS shares and their overall
+  percentage-point trends. Procedurals remain outside the denominator.
 
-Summaries appear automatically once enough data is loaded. Classifier trend requires at least 6 classifier stages.
+Recent-vs-prior trends require at least 4 results. Least-squares trends require
+at least 3. Classifier recent trends require at least 6 stages and use a
+±1.5-point Stable threshold. Insufficient metrics remain visibly unavailable
+rather than appearing as zero. Combined M+NS values always remain combined and
+show their own sample basis.
 
 The **Non-Classifier Stage Trend** averages your included non-classifier stage percentages for each match. Each percentage compares your hit factor with the top shooter on that stage at that match. It uses a linear 0–100% scale and is useful for tracking match-relative performance, but it is not an official USPSA classification percentage and does not use GM/M/A/B/C/D bands. Its 40%, 60%, 75%, 85%, and 95% lines are numeric percentage references only.
 
