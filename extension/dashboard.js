@@ -1190,8 +1190,7 @@ function setPlacementVisible(visible) {
 function resetSecondaryAnalysis() {
   ['chartNonClfSection', 'chartClfOverlaySection', 'chartAccuracySection', 'chartHitZoneSection']
     .forEach(id => { document.getElementById(id).style.display = 'none'; });
-  ['chartTimeSummary', 'chartAdjSummary', 'chartPlaceSummary', 'chartClfSummary']
-    .forEach(id => { document.getElementById(id).style.display = 'none'; });
+  clearChartSummaries();
   document.getElementById('chartPlaceSubtitle').textContent = '';
 }
 
@@ -1467,6 +1466,7 @@ function renderAll() {
       showClassBands: allClassifierScoresOfficial,
     });
     setPlacementVisible(false);
+    generateSummaries(viewSorted, { mode: 'classifiersOnly' });
     return;
   }
 
@@ -1707,11 +1707,11 @@ function renderAll() {
   const accuracyPoints  = [];
   for (const r of viewSorted) {
     if (!r.stages?.length) continue;
-    const totals = { c: 0, d: 0, m: 0, ns: 0 };
-    const available = { c: false, d: false, m: false, ns: false };
+    const totals = { a: 0, b: 0, c: 0, d: 0, m: 0, ns: 0, m_ns: 0 };
+    const available = { a: false, b: false, c: false, d: false, m: false, ns: false, m_ns: false };
     let hasCombinedMNs = false, stagesWithHits = 0;
     for (const s of getMetricStages(r)) {
-      for (const key of ['c', 'd']) {
+      for (const key of ['a', 'b', 'c', 'd']) {
         const value = reportedStageHit(s, key);
         if (value == null) continue;
         available[key] = true;
@@ -1723,7 +1723,12 @@ function renderAll() {
         if (stageM != null) { available.m = true; totals.m += stageM; }
         if (stageNS != null) { available.ns = true; totals.ns += stageNS; }
       } else {
-        if (reportedStageHit(s, 'm_ns') != null) hasCombinedMNs = true;
+        const stageCombined = reportedStageHit(s, 'm_ns');
+        if (stageCombined != null) {
+          hasCombinedMNs = true;
+          available.m_ns = true;
+          totals.m_ns += stageCombined;
+        }
       }
       stagesWithHits++;
     }
@@ -1732,11 +1737,14 @@ function renderAll() {
       date: r.date,
       label: r.match_name,
       division: r.division,
+      a: available.a ? totals.a : null,
+      b: available.b ? totals.b : null,
       c: available.c ? totals.c : null,
       d: available.d ? totals.d : null,
       m: hasCombinedMNs ? null : (available.m ? totals.m : null),
       ns: hasCombinedMNs ? null : (available.ns ? totals.ns : null),
-      m_ns: hasCombinedMNs,
+      m_ns: available.m_ns ? totals.m_ns : null,
+      hasCombinedMNs,
     });
   }
   accuracyPoints.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -1818,7 +1826,7 @@ function renderAll() {
     hitZoneSection.style.display = 'none';
   }
 
-  generateSummaries(viewSorted);
+  generateSummaries(viewSorted, { nonClfPoints, accuracyPoints, hitZoneBars });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

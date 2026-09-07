@@ -1,18 +1,162 @@
 // dashboard-summaries.js — dashboard analytics summary helpers
 
-// ── Chart summaries ───────────────────────────────────────────────────────────
-// Simple helper: mean of a numeric array (returns 0 on empty).
+const SUMMARY_IDS = [
+  'chartTimeSummary',
+  'chartPlaceSummary',
+  'chartNonClfSummary',
+  'chartClfSummary',
+  'chartAccuracySummary',
+  'chartHitZoneSummary',
+];
+
 function _avg(arr) {
-  return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+  return arr.length ? arr.reduce((sum, value) => sum + value, 0) / arr.length : null;
 }
 
-// Trend label HTML for a percentage-point delta, with an inclusive ±threshold for "stable".
-function _trendLabel(delta, threshold = 1.0) {
-  if (delta >  threshold) return `<span class="s-up">↑ improving</span>`;
-  if (delta < -threshold) return `<span class="s-down">↓ declining</span>`;
-  const unit = threshold === 1 ? 'percentage point' : 'percentage points';
-  return `<span class="s-flat">→ stable</span> ` +
-    `<span class="s-note">(within ±${threshold.toFixed(1)} ${unit} of baseline)</span>`;
+function _finiteValues(values) {
+  return values.filter(Number.isFinite);
+}
+
+function _recentComparison(values, recentSize = 3) {
+  const finite = _finiteValues(values);
+  if (finite.length <= recentSize) return null;
+  const recent = finite.slice(-recentSize);
+  const prior = finite.slice(0, -recentSize);
+  return {
+    recentAvg: _avg(recent),
+    priorAvg: _avg(prior),
+    delta: _avg(recent) - _avg(prior),
+    recentCount: recent.length,
+    priorCount: prior.length,
+  };
+}
+
+function _overallTrend(values) {
+  const samples = values
+    .map((value, index) => ({ x: index, y: value }))
+    .filter(sample => Number.isFinite(sample.y));
+  const regression = leastSquaresRegression(samples);
+  if (!regression) return null;
+  return {
+    delta: regression.end.y - regression.start.y,
+    count: samples.length,
+  };
+}
+
+function _pearsonCorrelation(pairs) {
+  const finite = pairs.filter(pair => Number.isFinite(pair.x) && Number.isFinite(pair.y));
+  if (finite.length < 3) return null;
+  const meanX = _avg(finite.map(pair => pair.x));
+  const meanY = _avg(finite.map(pair => pair.y));
+  const numerator = finite.reduce((sum, pair) => sum + (pair.x - meanX) * (pair.y - meanY), 0);
+  const spreadX = finite.reduce((sum, pair) => sum + Math.pow(pair.x - meanX, 2), 0);
+  const spreadY = finite.reduce((sum, pair) => sum + Math.pow(pair.y - meanY, 2), 0);
+  const denominator = Math.sqrt(spreadX * spreadY);
+  if (!denominator) return null;
+  return { r: numerator / denominator, count: finite.length };
+}
+
+function _signed(value, digits = 1) {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
+}
+
+function _trendStatus(delta, threshold = 1.0, lowerIsBetter = false) {
+  const improvement = lowerIsBetter ? -delta : delta;
+  if (improvement > threshold) return { tone: 'positive', icon: '↑', label: 'Improving' };
+  if (improvement < -threshold) return { tone: 'negative', icon: '↓', label: 'Needs attention' };
+  return { tone: 'neutral', icon: '→', label: 'Stable' };
+}
+
+function _contextStatus(label, icon = '•') {
+  return { tone: 'context', icon, label };
+}
+
+function _insightTile({ label, value, comparison, meta, status }) {
+  const safeStatus = status || _contextStatus('Context');
+  return `
+    <article class="insight-tile insight-tile--${safeStatus.tone}" role="listitem">
+      <div class="insight-tile__label">${escHtml(label)}</div>
+      <div class="insight-tile__value">${escHtml(value)}</div>
+      <div class="insight-tile__status">
+        <span class="insight-tile__icon" aria-hidden="true">${escHtml(safeStatus.icon)}</span>
+        <span>${escHtml(safeStatus.label)}</span>
+      </div>
+      <div class="insight-tile__comparison">${escHtml(comparison)}</div>
+      <div class="insight-tile__meta">${escHtml(meta)}</div>
+    </article>`;
+}
+
+function _unavailableTile(label, reason) {
+  return _insightTile({
+    label,
+    value: '—',
+    comparison: reason,
+    meta: 'Missing values are not treated as zero.',
+    status: _contextStatus('Not enough data', '…'),
+  });
+}
+
+function _renderSummary(id, tiles) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.innerHTML = tiles.join('');
+  element.style.display = tiles.length ? '' : 'none';
+}
+
+function clearChartSummaries() {
+  for (const id of SUMMARY_IDS) {
+    const element = document.getElementById(id);
+    if (!element) continue;
+    element.innerHTML = '';
+    element.style.display = 'none';
+  }
+}
+
+function _comparisonTile(label, comparison, unit, threshold = 1.0, lowerIsBetter = false) {
+  if (!comparison) return _unavailableTile(label, 'At least 4 results are required.');
+  const status = _trendStatus(comparison.delta, threshold, lowerIsBetter);
+  const thresholdNote = status.label === 'Stable'
+    ? ` · stable within ±${threshold.toFixed(1)} ${unit === '%' ? 'pp' : 'hits'}`
+    : '';
+  return _insightTile({
+    label,
+    value: `${comparison.recentAvg.toFixed(1)}${unit}`,
+    comparison: `${_signed(comparison.delta)}${unit === '%' ? ' pp' : ''} vs prior ${comparison.priorAvg.toFixed(1)}${unit}`,
+    meta: `Recent ${comparison.recentCount} vs prior ${comparison.priorCount}${thresholdNote}`,
+    status,
+  });
+}
+
+function _overallTrendTile(label, values, threshold = 1.0, lowerIsBetter = false) {
+  const trend = _overallTrend(values);
+  if (!trend) return _unavailableTile(label, 'At least 3 comparable results are required.');
+  const status = _trendStatus(trend.delta, threshold, lowerIsBetter);
+  const thresholdNote = status.label === 'Stable' ? ` · stable within ±${threshold.toFixed(1)} pp` : '';
+  return _insightTile({
+    label,
+    value: `${_signed(trend.delta)} pp`,
+    comparison: 'Predicted first-to-last change',
+    meta: `Least-squares trend · n=${trend.count}${thresholdNote}`,
+    status,
+  });
+}
+
+function _adjustedPairs(sorted) {
+  const pairs = [];
+  for (const record of sorted) {
+    if (!record.stages?.length || !record.division) continue;
+    const adjustedStages = getMetricStages(record)
+      .map(stage => computeAdjustedPct(stage, record.division))
+      .filter(Boolean);
+    const raw = effectiveDivPct(record) ?? effectiveOverallPct(record);
+    if (!adjustedStages.length || !Number.isFinite(raw)) continue;
+    pairs.push({
+      adjusted: _avg(adjustedStages.map(stage => stage.adjPct)),
+      raw,
+      references: adjustedStages.map(({ refClass, refDiv }) => ({ refClass, refDiv })),
+    });
+  }
+  return pairs;
 }
 
 function dominantEliteReference(pairs) {
@@ -38,132 +182,211 @@ function dominantEliteReference(pairs) {
   return ['GM', 'M'].includes(refClass) ? { refClass, refDiv } : null;
 }
 
-function generateSummaries(viewSorted) {
+function _scoreTiles(sorted) {
+  const rawValues = sorted
+    .map(record => effectiveDivPct(record) ?? effectiveOverallPct(record))
+    .filter(Number.isFinite);
+  const adjustedPairs = _adjustedPairs(sorted);
+  const adjustedValues = adjustedPairs.map(pair => pair.adjusted);
+  const recentRaw = _recentComparison(rawValues);
+  const tiles = [
+    _comparisonTile('Recent match score', recentRaw, '%'),
+  ];
+
+  if (adjustedPairs.length >= 3) {
+    const adjustedAverage = _avg(adjustedValues);
+    const rawAverage = _avg(adjustedPairs.map(pair => pair.raw));
+    const difference = adjustedAverage - rawAverage;
+    const eliteReference = dominantEliteReference(adjustedPairs);
+    const context = difference > 1.5
+      ? 'Stronger overall fields than the division draw'
+      : difference < -1.5
+      ? 'Strong division draw relative to the match field'
+      : eliteReference
+      ? `Similar field strength · mostly ${eliteReference.refClass} ${divisionLabel(eliteReference.refDiv)}`
+      : 'Division and overall field strength are similar';
+    tiles.push(_insightTile({
+      label: 'Adjusted average',
+      value: `${adjustedAverage.toFixed(1)}%`,
+      comparison: `${_signed(difference)} pp vs paired raw ${rawAverage.toFixed(1)}%`,
+      meta: `${context} · n=${adjustedPairs.length}`,
+      status: _contextStatus('Field context', '◆'),
+    }));
+  } else {
+    tiles.push(_unavailableTile('Adjusted average', 'At least 3 paired matches are required.'));
+  }
+
+  tiles.push(_overallTrendTile('Overall match trend', rawValues));
+  tiles.push(_overallTrendTile('Overall adjusted trend', adjustedValues));
+  return tiles;
+}
+
+function _placementTiles(sorted) {
+  const fieldBeaten = sorted
+    .filter(record => record.div_place != null && record.div_total > 0)
+    .map(record => (1 - record.div_place / record.div_total) * 100);
+  const average = _avg(fieldBeaten);
+  const averageTile = average == null
+    ? _unavailableTile('Average field beaten', 'Placement data is unavailable.')
+    : _insightTile({
+      label: 'Average field beaten',
+      value: `${average.toFixed(1)}%`,
+      comparison: 'Share of division finished behind you',
+      meta: `Current filtered view · n=${fieldBeaten.length}`,
+      status: _contextStatus('Overall view', '◎'),
+    });
+  return [averageTile, _comparisonTile('Recent placement', _recentComparison(fieldBeaten), '%')];
+}
+
+function _nonClassifierTiles(points) {
+  const values = points.map(point => point.y);
+  return [
+    _comparisonTile('Recent stage performance', _recentComparison(values), '%'),
+    _overallTrendTile('Overall stage trend', values),
+  ];
+}
+
+function _classifierData(sorted) {
+  const officialScores = [];
+  const fallbackScores = [];
+  const officialPairs = [];
+  const mixedPairs = [];
+  const matchScores = [];
+
+  for (const record of sorted) {
+    const classifiers = getMetricStages(record).filter(stage => isClassifierStage(stage));
+    if (!classifiers.length) continue;
+    const official = classifiers.map(stage => stage.clf_pct).filter(Number.isFinite);
+    const fallback = classifiers.map(stage => stage.clf_pct ?? stage.pct).filter(Number.isFinite);
+    officialScores.push(...official);
+    fallbackScores.push(...fallback);
+
+    const matchScore = effectiveOverallPct(record);
+    if (!Number.isFinite(matchScore)) continue;
+    matchScores.push(matchScore);
+    if (official.length) officialPairs.push({ x: _avg(official), y: matchScore });
+    if (fallback.length) mixedPairs.push({ x: _avg(official.length ? official : fallback), y: matchScore });
+  }
+
+  const useOfficial = officialScores.length > 0;
+  const scores = useOfficial ? officialScores : fallbackScores;
+  const useOfficialPairs = officialPairs.length >= 3;
+  return {
+    scores,
+    basis: useOfficial ? 'Official USPSA national HHF' : 'Match-relative classifier fallback',
+    pairs: useOfficialPairs ? officialPairs : mixedPairs,
+    pairBasis: useOfficialPairs ? 'Official classifier % only' : 'Mixed basis, explicitly labelled',
+    matchScores,
+  };
+}
+
+function _correlationDescription(r) {
+  const magnitude = Math.abs(r);
+  if (magnitude >= 0.7) return 'Strong association';
+  if (magnitude >= 0.4) return 'Moderate association';
+  if (magnitude >= 0.2) return 'Weak association';
+  return 'Little association';
+}
+
+function _classifierTiles(sorted) {
+  const data = _classifierData(sorted);
+  const recentSize = Math.min(5, Math.floor(data.scores.length / 2));
+  const recent = recentSize >= 1 && data.scores.length >= 6
+    ? _recentComparison(data.scores, recentSize)
+    : null;
+  const averageMatchScore = _avg(data.matchScores);
+  const correlation = _pearsonCorrelation(data.pairs);
+
+  return [
+    recent
+      ? _comparisonTile('Recent classifiers', recent, '%', 1.5)
+      : _unavailableTile('Recent classifiers', 'At least 6 classifier stages are required.'),
+    data.scores.length
+      ? _insightTile({
+        label: 'Best classifier',
+        value: `${Math.max(...data.scores).toFixed(1)}%`,
+        comparison: data.basis,
+        meta: `Best of ${data.scores.length} stages`,
+        status: _contextStatus('Best result', '★'),
+      })
+      : _unavailableTile('Best classifier', 'Classifier scores are unavailable.'),
+    averageMatchScore == null
+      ? _unavailableTile('Classifier-match score', 'No paired match scores are available.')
+      : _insightTile({
+        label: 'Classifier-match score',
+        value: `${averageMatchScore.toFixed(1)}%`,
+        comparison: 'Average match score when a classifier was present',
+        meta: `Current filtered view · n=${data.matchScores.length}`,
+        status: _contextStatus('Match context', '◎'),
+      }),
+    correlation
+      ? _insightTile({
+        label: 'Classifier correlation',
+        value: `r ${correlation.r.toFixed(2)}`,
+        comparison: `${_correlationDescription(correlation.r)} · association only`,
+        meta: `${data.pairBasis} · n=${correlation.count}`,
+        status: _contextStatus('Context, not causation', '↔'),
+      })
+      : _unavailableTile('Classifier correlation', 'At least 3 paired matches with variation are required.'),
+  ];
+}
+
+function _outcomeTiles(points, mode) {
+  const definitions = [
+    ['a', 'A hits', false],
+    ['b', 'B hits', true],
+    ['c', 'C hits', true],
+    ['d', 'D hits', true],
+    ['m', 'Misses', true],
+    ['ns', 'No-shoots', true],
+    ['m_ns', 'Combined M+NS', true],
+  ];
+  const tiles = [];
+
+  for (const [key, label, lowerIsBetter] of definitions) {
+    const property = mode === 'share' ? `${key}Pct` : key;
+    const values = points.map(point => point[property]).filter(Number.isFinite);
+    if (!values.length || (key === 'b' && !values.some(value => value > 0))) continue;
+
+    if (mode === 'share') {
+      const average = _avg(values);
+      const trend = _overallTrend(values);
+      const status = trend ? _trendStatus(trend.delta, 1.0, lowerIsBetter) : null;
+      const thresholdNote = status?.label === 'Stable' ? ' · stable within ±1.0 pp' : '';
+      tiles.push(_insightTile({
+        label,
+        value: `${average.toFixed(1)}%`,
+        comparison: trend ? `${_signed(trend.delta)} pp predicted change` : 'Trend needs at least 3 matches',
+        meta: `Average share · n=${values.length}${thresholdNote}`,
+        status: status || _contextStatus('Not enough trend data', '…'),
+      }));
+      continue;
+    }
+
+    const comparison = _recentComparison(values);
+    tiles.push(comparison
+      ? _comparisonTile(label, comparison, '', 0.5, lowerIsBetter)
+      : _unavailableTile(label, 'At least 4 matches with this reported column are required.'));
+  }
+  return tiles;
+}
+
+function generateSummaries(viewSorted, analysis = {}) {
+  clearChartSummaries();
   const sorted = [...viewSorted].sort((a, b) => {
     const da = parseDate(a.date), db = parseDate(b.date);
     return (da && db) ? da - db : 0;
   });
 
-  // ── 1. Score over time: last 3 matches vs prior baseline ──────────────────
-  const scoredMatches = sorted.filter(r => effectiveDivPct(r) != null || effectiveOverallPct(r) != null);
-  const scoreEl = document.getElementById('chartTimeSummary');
-  if (scoreEl) {
-    if (scoredMatches.length >= 4) {
-      const recent     = scoredMatches.slice(-3);
-      const prior      = scoredMatches.slice(0, -3);
-      const recentAvg  = _avg(recent.map(r => effectiveDivPct(r) ?? effectiveOverallPct(r)).filter(v => v != null));
-      const priorAvg   = _avg(prior.map(r => effectiveDivPct(r) ?? effectiveOverallPct(r)).filter(v => v != null));
-      const delta      = recentAvg - priorAvg;
-      const sign       = delta >= 0 ? '+' : '';
-      scoreEl.innerHTML =
-        `Last 3 matches: <span class="s-val">${recentAvg.toFixed(1)}%</span> ` +
-        `vs prior baseline <span class="s-val">${priorAvg.toFixed(1)}%</span> ` +
-        `— ${sign}${delta.toFixed(1)} pp ${_trendLabel(delta)}`;
-      scoreEl.style.display = '';
-    } else {
-      scoreEl.style.display = 'none';
-    }
+  if (analysis.mode === 'classifiersOnly') {
+    _renderSummary('chartTimeSummary', _classifierTiles(sorted));
+    return;
   }
 
-  // ── 2. Adjusted % vs raw division % ───────────────────────────────────────
-  const adjEl = document.getElementById('chartAdjSummary');
-  if (adjEl) {
-    const pairs = [];
-    for (const r of sorted) {
-      if (!r.stages?.length || !r.division) continue;
-      const adjs = getMetricStages(r).map(s => computeAdjustedPct(s, r.division)).filter(Boolean);
-      if (!adjs.length) continue;
-      const rawPct = effectiveDivPct(r) ?? effectiveOverallPct(r);
-      if (rawPct == null) continue;
-      pairs.push({
-        adj: _avg(adjs.map(a => a.adjPct)),
-        raw: rawPct,
-        references: adjs.map(({ refClass, refDiv }) => ({ refClass, refDiv })),
-      });
-    }
-    if (pairs.length >= 3) {
-      const meanAdj = _avg(pairs.map(p => p.adj));
-      const meanRaw = _avg(pairs.map(p => p.raw));
-      const diff    = meanAdj - meanRaw;
-      const sign    = diff >= 0 ? '+' : '';
-      const eliteReference = dominantEliteReference(pairs);
-      const context = diff > 1.5
-        ? `You're regularly competing against stronger fields than your division draw alone suggests.`
-        : diff < -1.5
-        ? `Your division tends to draw competitive shooters relative to the overall match field.`
-        : eliteReference
-        ? `Your raw division % was already measured against predominantly ${escHtml(eliteReference.refClass)}-class competition in ${escHtml(divisionLabel(eliteReference.refDiv))}, so little field-strength adjustment was needed.`
-        : `Your division's field strength closely mirrors the overall match field.`;
-      adjEl.innerHTML =
-        `Adjusted avg <span class="s-val">${meanAdj.toFixed(1)}%</span> ` +
-        `vs raw division avg <span class="s-val">${meanRaw.toFixed(1)}%</span> ` +
-        `(${sign}${diff.toFixed(1)}%) — ${context}`;
-      adjEl.style.display = '';
-    } else {
-      adjEl.style.display = 'none';
-    }
-  }
-
-  // ── 3. Placement: average percentile + trend ───────────────────────────────
-  const placeEl = document.getElementById('chartPlaceSummary');
-  if (placeEl) {
-    const placeData = sorted.filter(r => r.div_place != null && r.div_total > 0);
-    if (placeData.length >= 3) {
-      const pcts      = placeData.map(r => r.div_place / r.div_total);
-      const meanPct   = _avg(pcts);
-      const topPct    = Math.round(meanPct * 100);
-      let trendStr    = '';
-      if (placeData.length >= 4) {
-        // Lower percentile ratio = higher in the field = better
-        const recentPct = _avg(pcts.slice(-3)) * 100;
-        const priorPct  = _avg(pcts.slice(0, -3)) * 100;
-        const delta     = priorPct - recentPct; // positive = moved up = improving
-        const sign      = delta >= 0 ? '+' : '';
-        trendStr        = ` Recent: top <span class="s-val">${recentPct.toFixed(1)}%</span> ` +
-          `vs prior top <span class="s-val">${priorPct.toFixed(1)}%</span> ` +
-          `— ${sign}${delta.toFixed(1)} pp ${_trendLabel(delta)}.`;
-      }
-      placeEl.innerHTML =
-        `Finishing in the top <span class="s-val">${topPct}%</span> of your division on average.${trendStr}`;
-      placeEl.style.display = '';
-    } else {
-      placeEl.style.display = 'none';
-    }
-  }
-
-  // ── 4. Classifier trend: clf_pct only (national HHF — directly comparable) ─
-  const clfEl = document.getElementById('chartClfSummary');
-  if (clfEl) {
-    const clfStages = [];
-    for (const r of sorted) {
-      if (!r.stages) continue;
-      for (const s of getMetricStages(r)) {
-        if (s.clf_pct != null) clfStages.push(s.clf_pct);
-      }
-    }
-    if (clfStages.length >= 6) {
-      const N         = Math.min(5, Math.floor(clfStages.length / 2));
-      const recent    = clfStages.slice(-N);
-      const prior     = clfStages.slice(0, -N);
-      const recentAvg = _avg(recent);
-      const priorAvg  = _avg(prior);
-      const delta     = recentAvg - priorAvg;
-      const sign      = delta >= 0 ? '+' : '';
-      clfEl.innerHTML =
-        `Last ${N} classifiers: <span class="s-val">${recentAvg.toFixed(1)}%</span> ` +
-        `vs prior <span class="s-val">${priorAvg.toFixed(1)}%</span> ` +
-        `— ${sign}${delta.toFixed(1)} pp ${_trendLabel(delta, 1.5)} ` +
-        `<span class="s-note">(national HHF reference — directly comparable across matches)</span>`;
-      clfEl.style.display = '';
-    } else if (clfStages.length >= 2) {
-      const clfAvg = _avg(clfStages);
-      clfEl.innerHTML =
-        `Classifier avg: <span class="s-val">${clfAvg.toFixed(1)}%</span> ` +
-        `across ${clfStages.length} stage${clfStages.length > 1 ? 's' : ''}. ` +
-        `<span class="s-note">(${6 - clfStages.length} more needed for trend)</span>`;
-      clfEl.style.display = '';
-    } else {
-      clfEl.style.display = 'none';
-    }
-  }
+  _renderSummary('chartTimeSummary', _scoreTiles(sorted));
+  _renderSummary('chartPlaceSummary', _placementTiles(sorted));
+  _renderSummary('chartNonClfSummary', _nonClassifierTiles(analysis.nonClfPoints || []));
+  _renderSummary('chartClfSummary', _classifierTiles(sorted));
+  _renderSummary('chartAccuracySummary', _outcomeTiles(analysis.accuracyPoints || [], 'count'));
+  _renderSummary('chartHitZoneSummary', _outcomeTiles(analysis.hitZoneBars || [], 'share'));
 }

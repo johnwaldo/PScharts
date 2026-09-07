@@ -410,21 +410,82 @@
 
     canvas { display: block; width: 100% !important; height: 380px; }
 
-    /* ── Chart data summaries ── */
+    /* ── Chart insight tiles ── */
     .chart-summary {
-      margin-top: 10px;
-      padding: 9px 14px;
-      font-size: 14px;
-      color: #777;
-      line-height: 1.7;
-      border-top: 1px solid #252838;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
     }
-    .chart-summary--adj { border-top-style: dashed; border-top-color: #1e2130; }
-    .chart-summary .s-val  { color: #e0e0e0; font-weight: 600; }
-    .chart-summary .s-up   { color: #4caf50; font-weight: 600; }
-    .chart-summary .s-down { color: #ff6b6b; font-weight: 600; }
-    .chart-summary .s-flat { color: #888;    font-weight: 500; }
-    .chart-summary .s-note { font-size: 12px; color: #aab3c2; }
+    .chart-summary--wide { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .chart-summary--outcomes { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .insight-tile {
+      min-width: 0;
+      padding: 13px 14px 12px;
+      background: #171a24;
+      border: 1px solid #2a2d3a;
+      border-left: 3px solid #596274;
+      border-radius: 8px;
+    }
+    .insight-tile--positive { border-left-color: #4caf50; }
+    .insight-tile--negative { border-left-color: #ff6b6b; }
+    .insight-tile--context { border-left-color: #4a9eff; }
+    .insight-tile__label {
+      color: #aab3c2;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.3;
+      text-transform: uppercase;
+      letter-spacing: 0.55px;
+    }
+    .insight-tile__value {
+      margin-top: 7px;
+      color: #f0f2f6;
+      font-size: 24px;
+      font-weight: 750;
+      line-height: 1.1;
+      font-feature-settings: 'tnum' 1;
+      overflow-wrap: anywhere;
+    }
+    .insight-tile__status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 8px;
+      color: #aab3c2;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .insight-tile--positive .insight-tile__status { color: #6fd47a; }
+    .insight-tile--negative .insight-tile__status { color: #ff8585; }
+    .insight-tile--context .insight-tile__status { color: #78b6ff; }
+    .insight-tile__icon {
+      display: inline-grid;
+      width: 17px;
+      height: 17px;
+      place-items: center;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      font-size: 11px;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+    .insight-tile__comparison {
+      margin-top: 7px;
+      color: #d0d5df;
+      font-size: 12px;
+      line-height: 1.4;
+      font-feature-settings: 'tnum' 1;
+      overflow-wrap: anywhere;
+    }
+    .insight-tile__meta {
+      margin-top: 4px;
+      color: #8993a5;
+      font-size: 11px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
     .chart-subtitle {
       font-size: 12px;
       color: #aab3c2;
@@ -1117,6 +1178,9 @@
       .last8-toggle { margin-left: 0; padding-left: 0; border-left: 0; }
       .chart-section { padding: 20px 16px; }
       .chart-section-header { align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+      .chart-summary,
+      .chart-summary--wide,
+      .chart-summary--outcomes { grid-template-columns: 1fr; }
       #matchHistory { margin-left: 16px; margin-right: 16px; }
       .match-row { flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
       .match-info { flex: 1 1 calc(100% - 55px); }
@@ -1216,10 +1280,18 @@
     [data-theme="light"] .chart-note { background: #f0f2f7; border-left-color: #c0c4cc; color: #5a6478; }
     [data-theme="light"] .chart-note strong { color: #2c3040; }
     [data-theme="light"] .chart-note em { color: #4a5060; }
-    [data-theme="light"] .chart-summary { color: #5a6478; border-top-color: #d8dce6; }
-    [data-theme="light"] .chart-summary--adj { border-top-color: #e0e2e8; }
-    [data-theme="light"] .chart-summary .s-val { color: #1a1d27; }
-    [data-theme="light"] .chart-summary .s-note { color: #4f596b; }
+    [data-theme="light"] .insight-tile { background: #ffffff; border-color: #d0d4dc; border-left-color: #687386; }
+    [data-theme="light"] .insight-tile--positive { border-left-color: #16803d; }
+    [data-theme="light"] .insight-tile--negative { border-left-color: #c9362b; }
+    [data-theme="light"] .insight-tile--context { border-left-color: #2563eb; }
+    [data-theme="light"] .insight-tile__label { color: #4f596b; }
+    [data-theme="light"] .insight-tile__value { color: #171a24; }
+    [data-theme="light"] .insight-tile__status { color: #4f596b; }
+    [data-theme="light"] .insight-tile--positive .insight-tile__status { color: #16733a; }
+    [data-theme="light"] .insight-tile--negative .insight-tile__status { color: #b42318; }
+    [data-theme="light"] .insight-tile--context .insight-tile__status { color: #1d4ed8; }
+    [data-theme="light"] .insight-tile__comparison { color: #374151; }
+    [data-theme="light"] .insight-tile__meta { color: #5a6478; }
     [data-theme="light"] .chart-subtitle { color: #4f596b; }
     [data-theme="light"] .chart-scale-note { color: #5a6478; }
     [data-theme="light"] #exportCsvBtn { color: #8a9bb0; border-color: #d0d4dc; }
@@ -1474,8 +1546,7 @@
        Adjusted % is the more meaningful progress indicator because it compares you with the strongest normalized stage result at that match, regardless of division. Neither match metric is an official USPSA classification percentage; use Classifiers Only for nationally normalized classifier context.
        The numeric 40%, 60%, 75%, 85%, and 95% lines are neutral percentage references, not inferred USPSA classifications.
     </div>
-    <div class="chart-summary" id="chartTimeSummary" style="display:none"></div>
-    <div class="chart-summary chart-summary--adj" id="chartAdjSummary" style="display:none"></div>
+    <div class="chart-summary chart-summary--wide" id="chartTimeSummary" role="list" aria-label="Score insights" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartPlaceSection">
     <div class="chart-section-header">
@@ -1483,7 +1554,7 @@
       <span id="chartPlaceSubtitle" style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:0.5px"></span>
     </div>
     <canvas id="chartPlace" height="380"></canvas>
-    <div class="chart-summary" id="chartPlaceSummary" style="display:none"></div>
+    <div class="chart-summary" id="chartPlaceSummary" role="list" aria-label="Placement insights" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartNonClfSection" style="display:none">
     <div class="chart-section-header">
@@ -1491,6 +1562,7 @@
       <span class="chart-subtitle">Average stage % compared with each match's top shooter — neutral numeric guides, not USPSA classifications</span>
     </div>
     <canvas id="chartNonClf" height="380"></canvas>
+    <div class="chart-summary" id="chartNonClfSummary" role="list" aria-label="Non-classifier stage insights" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartClfOverlaySection" style="display:none">
     <div class="chart-section-header">
@@ -1498,7 +1570,7 @@
       <span style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:0.5px">Numeric guides compare percentage references; they are not class bands</span>
     </div>
     <canvas id="chartClfOverlay" height="380"></canvas>
-    <div class="chart-summary" id="chartClfSummary" style="display:none"></div>
+    <div class="chart-summary chart-summary--wide" id="chartClfSummary" role="list" aria-label="Classifier and match score insights" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartAccuracySection" style="display:none">
     <div class="chart-section-header">
@@ -1506,6 +1578,7 @@
       <span style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:0.5px">Reported C, D, M, and NS counts per match · nonlinear scale · combined M+NS is not split</span>
     </div>
     <canvas id="chartAccuracy" height="380"></canvas>
+    <div class="chart-summary chart-summary--outcomes" id="chartAccuracySummary" role="list" aria-label="Accuracy outcome insights" style="display:none"></div>
   </div>
   <div class="chart-section" id="chartHitZoneSection" style="display:none">
     <div class="chart-section-header">
@@ -1514,6 +1587,7 @@
     </div>
     <div class="chart-scale-note">Raw 0–75% maps to 0–45% of visual height; raw 75–100% maps to 45–100%. Legible A segments show their exact percentage. Dotted lines are per-series least-squares progressions; the green line here tracks raw A%. Tooltips show exact raw counts and percentages. Procedural penalties are excluded from the reported hit-zone total.</div>
     <canvas id="chartHitZone" height="380"></canvas>
+    <div class="chart-summary chart-summary--outcomes" id="chartHitZoneSummary" role="list" aria-label="Hit zone insights" style="display:none"></div>
   </div>
 </div>
 

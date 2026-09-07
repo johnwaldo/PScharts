@@ -11,6 +11,11 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - Analytical canvases share a 380px displayed height, fill their section width, and redraw from their rendered dimensions after a browser resize.
 - Canvas backing stores scale to the current device pixel ratio while layout, drawing, and pointer hit testing remain in CSS-pixel coordinates. Hidden canvases retain their last valid backing size until visible measurement is possible.
 - Summary cards and controls wrap rather than forcing page-level horizontal scrolling.
+- Chart insight summaries use compact, repeated tiles beneath the related chart
+  or explanatory note. Score and classifier grids use four columns on wide
+  screens, placement and non-classifier grids use two, outcome grids auto-fit
+  their available metrics, and all grids stack before their content becomes
+  cramped.
 - At narrow widths, Match History rows wrap metadata and keep refresh, export, and delete actions visibly keyboard-accessible.
 - Wide layouts should use the available charting space; constrain individual text or control elements only when readability requires it.
 - Stage tables may scroll within their existing panel on narrow screens, but the page itself must not acquire unintended horizontal overflow.
@@ -20,11 +25,34 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - Preserve visible keyboard focus and keyboard access for every control.
 - Do not rely on hover for required actions or information.
 - Keep motion restrained in this analytical interface; resizing and filtering should feel immediate rather than animated.
-- Verify layout changes in both themes at approximately 375px, 1920px, and 2560px viewport widths.
+- Insight status icons reinforce visible text and are decorative to assistive
+  technology. Never communicate Improving, Stable, Needs attention,
+  unavailable data, or metric basis through colour or an icon alone.
+- Verify layout changes in both themes at approximately 375px, 1920px, and
+  2560px viewport widths.
 
 ## Chart language and axes
 
-- Trend summaries must state their comparison and use percentage-point units. When labelled **Stable**, show the metric-specific threshold in visible supporting text.
+- Trend summaries must state their comparison and use percentage-point units.
+  When labelled **Stable**, show the metric-specific threshold in visible
+  supporting text.
+- Every insight tile identifies its metric, primary value, comparison basis,
+  and sample size. Directional tiles use **Improving**, **Stable**, or
+  **Needs attention**; non-directional values use explicit labels such as
+  **Field context**, **Overall view**, or **Association only** instead of
+  implying progress.
+- Overall percentage trends report the least-squares predicted first-to-last
+  change for the filtered view. Score, placement, non-classifier, accuracy,
+  hit-zone, and classifier insights use the same final dataset and
+  stage-inclusion rules as their charts.
+- Classifier correlation is Pearson `r` across per-match classifier averages
+  paired with that match score, requires at least three varying pairs,
+  displays `n`, and is described only as an association. Prefer official
+  `clf_pct`; label any match-relative fallback and never infer a class from it.
+- Accuracy count tiles compare the last three matches with the prior baseline.
+  Higher A is positive; lower B/C/D/M/NS is positive. Hit-zone tiles pair
+  average shares with least-squares percentage-point trends using the same
+  semantic directions.
 - Date ticks use measured text width and a minimum 10px gap. Keep the final date only when it does not collide with the preceding retained label.
 - Suppress labels for duplicate source dates while preserving distinct same-day data points and tooltips. If different years share the same month and day, include the year so useful dates remain distinguishable.
 - Axis labels must remain inside the canvas and readable in both themes at narrow, desktop, and wide widths.
