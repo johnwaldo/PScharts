@@ -19,6 +19,7 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 - **Per-stage breakdown** — expand any match row to see hits, HF, and percentage for every stage; classifier stages show official USPSA % (vs national reference HF) as the primary number; individual stages can be excluded from ratings with an optional note
 - **Division-aware filtering** — automatically detects which division you shot in each match; a persistent selector filters every chart, statistic, classification, history row, and CSV export to one division
 - **Field-strength adjusted %** — for non-classifier stages, takes the top hit factor from every represented division, translates each result to your division's scale using hitfactor.info HHF ratios, and measures you against the strongest normalized benchmark — a more reliable indicator of improvement than raw division % when your division draw varies
+- **Experimental Time %** — an opt-in raw-time-only comparison using the fastest valid combined-field stage time divided by your raw time; classifiers, invalid times, and unavailable benchmarks are excluded
 - **Chart summaries** — automatic plain-English insight below each chart: score trend (last 3 vs baseline), adjusted % context, placement percentile, and classifier trend using the national HHF reference
 - **Classifier tracking** — overlay of your classifier scores against your running average; identifies each CM by number and links to the USPSA stage description PDF
 - **Consistency card** — match-to-match score variance and accuracy loss metrics
@@ -54,6 +55,8 @@ Where captured GM hit factors are available, the stage table separately shows **
 Use **Adjusted % Only** beside **Classifiers Only** to inspect the adjusted series without raw match percentages. The modes are mutually exclusive because adjusted scores exclude classifier stages. Adjusted-only mode never falls back to raw scores; when fewer than two usable adjusted matches are available, the chart explains that older matches may need to be refreshed to load non-classifier cross-division benchmark data. Switching modes uses cached data and does not fetch or rewrite match history.
 
 Score Over Time, Adjusted % Only, Non-Classifier Stage Trend, and Classifier vs Match Score include neutral numeric reference lines at 40%, 60%, 75%, 85%, and 95%. These lines preserve a linear 0–100% scale for visual comparison only; they do not infer a USPSA class, add class-coloured bands, or change official classifier context.
+
+**Time % (experimental)** is an optional supplemental series, not a replacement for either Division % or Adjusted %. Each usable non-classifier stage is `fastest valid combined-field raw time / your raw time × 100`, capped at 100%; a match point is the arithmetic mean of its usable stages. It does not apply division or power-factor weighting, and never substitutes hit factor, a division winner, or a guessed benchmark. A match with no usable stage times is unavailable.
 
 ---
 

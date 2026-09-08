@@ -1605,14 +1605,23 @@
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </span>
         </label>
+        <label id="timePctToggleWrap" class="chart-mode-toggle" title="Experimental raw-time comparison; excludes classifiers and stages without a valid combined-field time.">
+          <span class="toggle-lbl">Time % <small>(experimental)</small></span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="timePctChk" aria-describedby="timePctHelp">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </span>
+        </label>
       </div>
     </div>
     <canvas id="chartTime" height="380"></canvas>
     <div class="chart-note">
       <strong>Division %</strong> is your score relative to the top shooter in your division at that match — it tells you how you placed, but it only reflects who happened to show up in your division that day.
        <strong>Adjusted %</strong> is a field-strength correction: it takes the top stage hit factor from every division at that match, translates each result to your division's equivalent using national HHF ratios from hitfactor.info, and measures you against the strongest normalized result.
-        Adjusted % compares you with the strongest normalized stage result at that match, regardless of division. Match and adjusted badges are familiar but unofficial class equivalents; use Classifiers Only for official classifier context.
-        The numeric 40%, 60%, 75%, 85%, and 95% lines are neutral percentage references, not official classifications.
+       <strong>Time % (experimental)</strong> compares each usable non-classifier stage's raw time with the fastest valid combined-field raw time, then averages those stage percentages for the match. It is raw-time-only, capped at 100%, and unavailable when a match has no trustworthy raw-time benchmarks; it never replaces Score Over Time or Adjusted %.
+       <span id="timePctHelp" class="visually-hidden">Experimental raw-time-only comparison. Classifiers, excluded stages, invalid times, and stages without a combined-field benchmark are omitted.</span>
+       Adjusted % compares you with the strongest normalized stage result at that match, regardless of division. Match and adjusted badges are familiar but unofficial class equivalents; use Classifiers Only for official classifier context.
+       The numeric 40%, 60%, 75%, 85%, and 95% lines are neutral percentage references, not official classifications.
     </div>
     <div class="chart-summary chart-summary--wide" id="chartTimeSummary" role="list" aria-label="Score insights" style="display:none"></div>
   </div>

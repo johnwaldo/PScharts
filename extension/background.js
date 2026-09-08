@@ -2,7 +2,7 @@
 
 const PS_BASE = 'https://practiscore.com';
 const USPSA_BASE = 'https://uspsa.org';
-const CACHE_SCHEMA_VERSION = 2;
+const CACHE_SCHEMA_VERSION = 3;
 const STORAGE_SCHEMA_VERSION = 2;
 const HISTORY_SYNC_SCHEMA_VERSION = 1;
 const BACKUP_FORMAT_VERSION = 1;
@@ -108,6 +108,19 @@ function isCompatibleCompleteCache(value) {
     value.stages.length === metadata.expected_stage_count;
 }
 
+function hasTimeBenchmarkCapability(value) {
+  if (!isRecord(value) || !Array.isArray(value.stages)) return false;
+  return value.stages.every(stage => {
+    if (stage?.is_classifier === true) return true;
+    const shooterTime = Number(stage?.time);
+    // Invalid shooter times are intentionally unusable, not a reason to refetch
+    // an otherwise complete cache forever.
+    if (!Number.isFinite(shooterTime) || shooterTime <= 0) return true;
+    const benchmark = Number(stage?.fastest_combined_time);
+    return Number.isFinite(benchmark) && benchmark > 0;
+  });
+}
+
 async function migrateStorage() {
   const stored = await chrome.storage.local.get(['memberNumber', 'matchCache', 'storageMetadata']);
   const previousVersion = Number(stored.storageMetadata?.schemaVersion) || 0;
@@ -120,7 +133,7 @@ async function migrateStorage() {
   for (const [matchId, cached] of Object.entries(matchCache)) {
     if (!isCompatibleCompleteCache(cached)) continue;
     const schemaVersion = Number(cached.cache_completeness?.schema_version) || 0;
-    if (schemaVersion >= CACHE_SCHEMA_VERSION) continue;
+    if (schemaVersion >= CACHE_SCHEMA_VERSION || !hasTimeBenchmarkCapability(cached)) continue;
     matchCache[matchId] = {
       ...cached,
       cache_completeness: { ...cached.cache_completeness, schema_version: CACHE_SCHEMA_VERSION },
@@ -645,7 +658,8 @@ function isReusableMatchCache(cached, memberNumber) {
     Number.isInteger(metadata.expected_stage_count) &&
     metadata.expected_stage_count === metadata.fetched_stage_count &&
     Array.isArray(metadata.failed_stages) && metadata.failed_stages.length === 0 &&
-    Array.isArray(cached.stages) && cached.stages.length === metadata.expected_stage_count;
+    Array.isArray(cached.stages) && cached.stages.length === metadata.expected_stage_count &&
+    hasTimeBenchmarkCapability(cached);
 }
 
 function isSameOwnerCache(cached, memberNumber) {
@@ -657,7 +671,8 @@ function cacheRepairReason(cached, memberNumber) {
   if (!cached || typeof cached !== 'object') return 'new';
   const expectedOwner = (memberNumber || '').toUpperCase() || null;
   if (cached.cached_for !== expectedOwner) return 'owner';
-  return cached.cache_completeness?.state === 'partial' ? 'partial' : 'unknown';
+  if (cached.cache_completeness?.state === 'partial') return 'partial';
+  return hasTimeBenchmarkCapability(cached) ? 'unknown' : 'benchmark';
 }
 
 function stageIdentity(stage, index = 0) {
@@ -1271,9 +1286,10 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       }
     }
 
-    // ── Cross-division benchmark: switch to Combined view to find top HFs across all divisions ──
+    // ── Cross-division benchmark: switch to Combined view to find top HFs and raw time ──
     // This gives us the data needed to compute field-strength-adjusted percentages.
     let xdiv_benchmarks = null;
+    let fastestCombinedTime = null;
     if (combinedOpt) {
       await runInTab(tabId, setSelectAndFire, ['divisionLevel', combinedOpt.value]);
       await sleep(900);
@@ -1291,6 +1307,10 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       }
 
       const combinedRows = combinedPage?.allCompetitorRows || [];
+      fastestCombinedTime = combinedRows
+        .map(row => Number(row.time))
+        .filter(time => Number.isFinite(time) && time > 0)
+        .reduce((fastest, time) => fastest == null || time < fastest ? time : fastest, null);
       if (combinedRows.length > 0) {
         // Group by division, find top HF and top HF by class in each division
         const byDiv = {};
@@ -1348,7 +1368,8 @@ async function fetchStageData(tabId, matchId, memberNumber, name, divKey, stageO
       p:               d.p  ?? null,
       hit_columns:     d.hit_columns,
       gm_median_hf,
-      xdiv_benchmarks,
+        xdiv_benchmarks,
+        fastest_combined_time: fastestCombinedTime,
       is_classifier:   classifier.is_classifier ?? null,
       classifier_code: classifier.classifier_code ?? null,
     });
