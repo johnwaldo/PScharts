@@ -87,12 +87,37 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - Fetch timeline controls pre-fetch request scope; analytics presets independently filter cached data. Keep that distinction explicit in status and documentation.
 - The current visible select value is the next fetch scope. Changing it alone makes no request.
 - Preserve older cache and Match History entries when a narrower timeline is fetched. Explicit single-match refresh remains unrestricted.
-- Traverse every available Match History page and associate ID, name, and date within one source row or structured record. Deduplicate by match ID, never by date, so same-day matches remain distinct. An unsettled or incomplete extraction is non-destructive.
+- With valid same-owner sync metadata, scan Match History newest-first and stop
+  only after two consecutive settled pages contain no unknown IDs and every
+  valid date is at or before the stored high-water date. Any unknown ID resets
+  the overlap count, including a same-day addition. Missing/corrupt metadata,
+  malformed page dates, ten incremental runs, or fourteen days since the last
+  full scan require full pagination. Deduplicate by match ID, never by date, so
+  same-day matches remain distinct. An unsettled or incomplete extraction is
+  non-destructive and cannot advance sync metadata or erase coverage.
 - Store cache completeness with parser schema version, `complete|partial|unknown` state, expected and fetched stage counts, and failed stage identities. Legacy records are `unknown` and receive one lazy repair; only explicitly complete same-member records bypass score and stage requests.
 - Stage repair is sequential and bounded. Verify each selected stage, traverse result-table pages, retry failures, merge successful partial data by stable stage identity, and replace stages only after a complete authoritative fetch. Preserve stage overrides by stage number when names change.
 - Report extracted and in-range matches, complete cache reuse, partial and unknown repairs, new matches, expected and fetched stages, and failed stages as separate diagnostics.
+- Keep **Full history reconciliation**, **Back up data**, and **Restore backup**
+  as compact secondary controls below the primary fetch row. They wrap at narrow
+  widths, retain visible focus, and explain that backups are required before
+  changing an unpacked extension folder.
 - Use the dashboard-supplied inclusive date bounds as the authoritative fetch window so frontend and background scope cannot diverge across midnight.
 - Keep the label and select together as controls wrap at narrow widths, with visible focus and no page-level horizontal overflow.
+
+## Upgrade persistence and recovery
+
+- Preserve the manifest identity: do not add or change a fixed public key without
+  a separately verified one-time migration. In-place file replacement plus
+  Chrome's **Reload** is the supported unpacked-upgrade path.
+- Keep full history in `chrome.storage.local`; sync storage is reserved for compact credentials and theme preferences.
+- Backups are versioned JSON and include history, score cache, coverage,
+  selections, filters, and overrides. Validate format, size, field types, and
+  `cached_for` ownership before any restore write; require explicit confirmation
+  before replacing another member's local history.
+- Storage migrations are versioned and idempotent. Promote compatible complete
+  cache records to the current parser schema without refetching, preserve unknown
+  records for lazy repair, and never blanket-delete data during an upgrade.
 
 ## Last 8 analytics
 

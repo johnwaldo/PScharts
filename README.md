@@ -8,7 +8,7 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 
 ![Hit Factor Charts — Analytics](/screenshots/bottom.png?raw=true "Hit Factor Charts — Full Analytics Suite")
 
-*Screenshots taken at v1.5.5. Current version is v1.7.0.*
+*Screenshots taken at v1.5.5. Current version is v1.7.1.*
 
 ---
 
@@ -32,7 +32,11 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 - **Export as CSV** — download all chart-visible data as a flat CSV (one row per stage) including CM numbers, USPSA %, HF, hit counts, adjusted %, and the selected reference division, class, HF, normalized HF, and benchmark method
 - **Light/dark theme** — defaults to light mode; toggle in the header; preference syncs across devices via Chrome storage
 - **Inter font** — bundled variable font for clean, consistent rendering at all weights
-- **Complete local caching** — match data is cached in browser storage with stage-completeness metadata; complete matches are reused, while legacy or partial records are repaired on the next fetch
+- **Durable local caching** — history and preferences stay in browser storage;
+  compatible schemas migrate in place, and a versioned backup can restore data
+  after an unpacked-folder identity change
+- **Incremental history refresh** — routine fetches scan newest PractiScore pages
+  first; periodic and explicit full reconciliations catch older delayed matches
 - **No external server** — everything runs locally in your browser using your existing PractiScore login session
 
 ---
@@ -95,6 +99,27 @@ In the top-right corner of the Extensions page, toggle on **Developer mode**.
 3. Click **Select Folder**
 
 The Hit Factor Charts icon will appear in your Chrome toolbar. Pin it for easy access via the puzzle-piece menu.
+
+### Updating without losing local history
+
+Chrome keys unpacked-extension storage to the extension identity. Reloading the
+same loaded directory preserves that identity and all local history. Removing
+the extension or loading the same files from a different path can create a
+different identity with an empty storage namespace.
+
+1. Open Hit Factor Charts and click **Back up data**.
+2. Replace the files *inside the directory currently loaded by Chrome*. Keep the
+   directory path unchanged.
+3. Open `chrome://extensions` and click **Reload** on Hit Factor Charts. Do not
+   remove the extension or load a newly named/versioned folder.
+4. Reopen the dashboard and confirm the cached history and preferences are present.
+
+If the folder or extension identity already changed, load the new copy, click
+**Restore backup**, and choose the JSON backup. Restore validates the format,
+size, cache ownership, and data types before writing. A backup for a different
+member requires explicit confirmation. Full match history remains in
+`chrome.storage.local`; only compact credentials and theme preferences use
+`chrome.storage.sync` because sync storage is too small for score history.
 
 ---
 
@@ -160,7 +185,27 @@ Analytics open on the most recent **6 mo** so trends stay readable. Use the butt
 
 The **Last 8 matches** switch applies after the active analytics date range, division, Scored/All view, and manually selected matches. Turn it on to use the most recent eight qualifying matches across every chart, summary, classifier analysis, and chart CSV export. If fewer than eight qualify, all available matches are used. The preference is remembered, while Match History and cached records remain complete.
 
-The **Fetch timeline** dropdown beside **Fetch Scores** is separate: it limits network requests before a fetch begins and remembers your last choice. A narrower fetch merges new results with older cached Match History instead of deleting it. When you later choose a broader timeline, every available history page is traversed and same-date matches remain separate. Matches explicitly recorded as complete for the same member are reused without score or stage requests. Legacy, unknown, or partial records are repaired non-destructively, preserving successful stages and stage filters if a retry remains incomplete. The status and progress log report extracted and in-range matches separately from complete cache reuse, repairs, expected stages, fetched stages, and failures. Changing the dropdown or Last 8 switch alone does not make a request, and refreshing one match remains unrestricted.
+The **Fetch timeline** dropdown beside **Fetch Scores** is separate: it limits
+score and stage requests and remembers your last choice. A narrower fetch merges
+new results with older cached Match History instead of deleting it. After one
+complete history scan establishes trusted sync metadata, routine refreshes scan
+newest PractiScore pages first and stop only after two settled pages contain no
+unknown IDs at or before the stored high-water date. Unknown or corrupt metadata
+falls back to full pagination. Same-date IDs remain distinct, and an incomplete
+page never deletes older rows or coverage.
+
+Click **Full history reconciliation** to scan every available history page while
+still reusing complete same-member score caches. The extension also performs a
+full reconciliation after ten incremental runs or fourteen days, whichever
+comes first, so older delayed or backfilled matches are eventually discovered.
+Matches explicitly recorded as complete for the same member are reused without
+score or stage requests. Compatible cache schemas migrate in place; unknown or
+partial records are repaired non-destructively, preserving successful stages
+and stage filters if a retry remains incomplete. The status and progress log
+report pages scanned, incremental/full mode, stop or fallback reason, newly
+discovered matches, cache reuse, repairs, and stage outcomes. Changing the
+dropdown or Last 8 switch alone does not make a request, and refreshing one
+match remains unrestricted.
 
 ### Exporting data
 
@@ -208,7 +253,8 @@ Use the **⚠ Clear All Data** button in the header to wipe all cached scores fr
 | Scores show 0% or wrong division | Your name in the Name field must match the result sheet exactly (e.g. `Doe, John`) |
 | Extension doesn't appear | Confirm Developer Mode is on and you loaded the `extension/` subfolder, not the repo root |
 | Match list is empty | Visit [practiscore.com/associate/step2](https://practiscore.com/associate/step2) while logged in to verify your history is accessible |
-| Charts show wrong colors | If upgrading from v1.4 or earlier, clear all data and re-fetch |
+| History appears empty after an update | The unpacked folder path may have changed. Load the intended copy and use **Restore backup**; for future updates, replace files in the loaded folder and click **Reload** |
+| An older delayed match is missing | Click **Full history reconciliation**; routine refreshes also trigger a periodic full scan |
 
 ---
 
