@@ -4,6 +4,8 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
+## v1.7.1 — 2026-09-08
+
 ### Added
 
 - Added versioned local-data backup and validated restore controls for recovery
