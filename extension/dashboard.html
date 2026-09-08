@@ -143,6 +143,27 @@
     #cancelBtn { background: none; color: #8a9bb0; border-color: #2a2d3a; display: none; }
     #cancelBtn:hover { color: #e0e0e0; border-color: #555; }
 
+    .recovery-controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 24px 14px;
+      border-bottom: 1px solid #1e2130;
+    }
+    .recovery-controls .ctrl-btn {
+      min-height: 34px;
+      padding: 7px 12px;
+      background: none;
+      border-color: #2a2d3a;
+      color: #8a9bb0;
+      font-size: 12px;
+    }
+    .recovery-controls .ctrl-btn:hover { color: #4a9eff; border-color: #4a9eff; }
+    .recovery-controls .ctrl-btn:focus-visible { outline: 2px solid #4a9eff; outline-offset: 2px; }
+    .recovery-controls .ctrl-btn:disabled { opacity: 0.5; cursor: default; }
+    .recovery-help { color: #70798a; font-size: 12px; }
+
     /* ── Status ── */
     #status {
       padding: 10px 24px;
@@ -1171,6 +1192,8 @@
       header,
       .controls { padding-left: 16px; padding-right: 16px; }
       .controls input { flex-basis: 100%; max-width: none; }
+      .recovery-controls { padding-left: 16px; padding-right: 16px; }
+      .recovery-help { flex-basis: 100%; }
       #status { padding-left: 16px; padding-right: 16px; }
       .summary-bar { padding-left: 16px; padding-right: 16px; }
       #stats { gap: 10px; }
@@ -1224,6 +1247,10 @@
     [data-theme="light"] #themeToggle { color: #4a5060; border-color: #c0c4cc; }
     [data-theme="light"] #themeToggle:hover { color: #1a1d27; border-color: #2563eb; }
     [data-theme="light"] .controls { border-bottom-color: #e0e2e8; }
+    [data-theme="light"] .recovery-controls { border-bottom-color: #e0e2e8; }
+    [data-theme="light"] .recovery-controls .ctrl-btn { color: #5a6478; border-color: #d0d4dc; }
+    [data-theme="light"] .recovery-controls .ctrl-btn:hover { color: #2563eb; border-color: #2563eb; }
+    [data-theme="light"] .recovery-help { color: #6b7280; }
     [data-theme="light"] .controls input,
     [data-theme="light"] .controls select {
       background: #ffffff;
@@ -1397,6 +1424,14 @@
   <button id="fetchBtn"  class="ctrl-btn">Fetch Scores</button>
 </div>
 
+<div class="recovery-controls" aria-label="History maintenance and recovery">
+  <button id="fullHistoryBtn" class="ctrl-btn" type="button">Full history reconciliation</button>
+  <button id="exportBackupBtn" class="ctrl-btn" type="button">Back up data</button>
+  <button id="importBackupBtn" class="ctrl-btn" type="button">Restore backup</button>
+  <input id="importBackupInput" class="visually-hidden" type="file" accept="application/json,.json" tabindex="-1" aria-hidden="true">
+  <span class="recovery-help">Back up before moving the unpacked extension to another folder.</span>
+</div>
+
 <div id="status" role="status" aria-live="polite">Enter your USPSA member number (recommended) and/or name, then click Fetch Scores.</div>
 
 <div id="onboardingCard">
@@ -1446,20 +1481,20 @@
     <div class="update-step">
       <div class="update-step-num">1</div>
       <div class="update-step-text">
-        <a class="update-download-btn" id="updateDownloadBtn" href="#" target="_blank">⬇ Download update</a>
+        <a class="update-download-btn" id="updateDownloadBtn" href="#" target="_blank">⬇ Download update</a> and click <strong>Back up data</strong> above
       </div>
     </div>
     <div class="update-step">
       <div class="update-step-num">2</div>
-      <div class="update-step-text">Unzip the downloaded file — you'll get a folder called <strong>extension</strong></div>
+      <div class="update-step-text">Unzip the download, then replace the files inside the <strong>same extension folder Chrome already has loaded</strong></div>
     </div>
     <div class="update-step">
       <div class="update-step-num">3</div>
-      <div class="update-step-text">Go to <strong>chrome://extensions</strong> → enable <strong>Developer mode</strong> (top-right toggle) → click <strong>Load unpacked</strong> → select the <strong>extension</strong> folder</div>
+      <div class="update-step-text">Go to <strong>chrome://extensions</strong> and click <strong>Reload</strong> on Hit Factor Charts. Do not remove it or load a new versioned folder.</div>
     </div>
     <div class="update-step">
       <div class="update-step-num">4</div>
-      <div class="update-step-text">Close this tab and reopen Hit Factor Charts — you're on the latest version</div>
+      <div class="update-step-text">Reopen Hit Factor Charts. If the folder or extension identity changed, use <strong>Restore backup</strong>.</div>
     </div>
   </div>
   <div class="update-notes-wrap" id="updateNotesWrap" style="display:none">

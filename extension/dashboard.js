@@ -46,6 +46,10 @@ const nameInput    = document.getElementById('nameInput');
 const divisionFilter = document.getElementById('divisionFilter');
 const fetchTimelineSelect = document.getElementById('fetchTimeline');
 const fetchBtn     = document.getElementById('fetchBtn');
+const fullHistoryBtn = document.getElementById('fullHistoryBtn');
+const exportBackupBtn = document.getElementById('exportBackupBtn');
+const importBackupBtn = document.getElementById('importBackupBtn');
+const importBackupInput = document.getElementById('importBackupInput');
 const editBtn      = document.getElementById('editBtn');
 const saveBtn      = document.getElementById('saveBtn');
 const cancelBtn    = document.getElementById('cancelBtn');
@@ -183,12 +187,15 @@ function applyTheme(theme) {
   if (btn) btn.textContent = theme === 'light' ? '\u263E' : '\u2606'; // moon / sun
 }
 
-// Restore saved theme (check sync first, then local)
-chrome.storage.sync.get(['theme'], syncData => {
-  const theme = syncData.theme || 'light';
+// Restore saved theme (check sync first, then restored local backup)
+Promise.all([
+  chrome.storage.sync.get(['theme']),
+  chrome.storage.local.get(['theme']),
+]).then(([syncData, localData]) => {
+  const theme = syncData.theme || localData.theme || 'light';
   applyTheme(theme);
-  // Also save to local for fast restore
   chrome.storage.local.set({ theme });
+  if (!syncData.theme && localData.theme) chrome.storage.sync.set({ theme });
 });
 
 document.getElementById('themeToggle').addEventListener('click', () => {
@@ -733,7 +740,7 @@ saveBtn.addEventListener('click', async () => {
       return;
     }
     // Clear cache and reset UI
-    await chrome.storage.local.remove(['matchCache', 'lastMatchList', 'stageOverrides', 'fetchCoverage']);
+    await chrome.storage.local.remove(['matchCache', 'lastMatchList', 'stageOverrides', 'fetchCoverage', 'matchHistorySync']);
     fetchCoverage = null;
     renderDateRangeFilter();
     allResults = [];
@@ -768,7 +775,13 @@ function hideOnboarding() {
 }
 
 // ── Restore persisted state on load ──────────────────────────────────────────
-chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache', 'deselectedMatches', 'stageOverrides', 'classificationData', 'selectedDivision', 'fetchTimeline', 'last8Matches', 'matchTypeOverrides', 'fetchCoverage'], async d => {
+async function initializeDashboard() {
+  try {
+    await chrome.runtime.sendMessage({ action: 'initializeStorage' });
+  } catch (error) {
+    console.warn('Storage migration could not be confirmed:', error);
+  }
+  const d = await chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache', 'deselectedMatches', 'stageOverrides', 'classificationData', 'selectedDivision', 'fetchTimeline', 'last8Matches', 'matchTypeOverrides', 'fetchCoverage']);
   // Try restoring from sync if local has no credentials (e.g. after reinstall)
   if (!d.memberNumber && !d.name) {
     await restoreFromSync();
@@ -820,6 +833,63 @@ chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache',
       renderMatchList();
       updateStatusCounts('Showing cached data:');
     }
+  }
+}
+
+initializeDashboard();
+
+// ── Versioned backup and recovery ────────────────────────────────────────────
+exportBackupBtn.addEventListener('click', async () => {
+  exportBackupBtn.disabled = true;
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
+    if (!response.ok) throw new Error(response.error || 'Backup failed.');
+    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `hit-factor-charts-backup-${date}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus('Backup downloaded. Keep it before changing the unpacked extension folder.', 'success');
+  } catch (error) {
+    setStatus(`Backup error: ${error.message}`, 'error');
+  } finally {
+    exportBackupBtn.disabled = false;
+  }
+});
+
+importBackupBtn.addEventListener('click', () => importBackupInput.click());
+
+importBackupInput.addEventListener('change', async () => {
+  const file = importBackupInput.files?.[0];
+  importBackupInput.value = '';
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    setStatus('Restore error: backup exceeds the 8 MB safety limit.', 'error');
+    return;
+  }
+
+  importBackupBtn.disabled = true;
+  try {
+    const backup = JSON.parse(await file.text());
+    let response = await chrome.runtime.sendMessage({ action: 'importBackup', backup });
+    if (!response.ok && response.code === 'OWNER_CONFLICT') {
+      const replace = confirm(
+        'This backup belongs to a different member than the cached history in this extension.\n\n' +
+        'Replace the current local history with the validated backup?'
+      );
+      if (!replace) return;
+      response = await chrome.runtime.sendMessage({ action: 'importBackup', backup, replaceExistingOwner: true });
+    }
+    if (!response.ok) throw new Error(response.error || 'Restore failed.');
+    setStatus(`Restored ${response.data.matches} match(es) and ${response.data.cacheEntries} cache record(s). Reloading…`, 'success');
+    setTimeout(() => location.reload(), 500);
+  } catch (error) {
+    setStatus(`Restore error: ${error.message}`, 'error');
+  } finally {
+    importBackupBtn.disabled = false;
   }
 });
 
@@ -892,8 +962,8 @@ fetchTimelineSelect.addEventListener('change', () => {
   chrome.storage.local.set({ fetchTimeline: selectedFetchTimeline });
 });
 
-// ── Fetch button ──────────────────────────────────────────────────────────────
-fetchBtn.addEventListener('click', async () => {
+// ── Fetch controls ────────────────────────────────────────────────────────────
+async function fetchScoresFromDashboard({ fullHistory = false } = {}) {
   const memberNumber = memberInput.value.trim().toUpperCase();
   const name         = nameInput.value.trim();
   selectedDiv = normalizeDivision(divisionFilter.value);
@@ -928,7 +998,7 @@ fetchBtn.addEventListener('click', async () => {
       'Your member number or name has changed. This will clear all cached match data and re-fetch everything.\n\nContinue?'
     );
     if (!ok) return;
-    await chrome.storage.local.remove(['matchCache', 'lastMatchList', 'stageOverrides', 'fetchCoverage']);
+    await chrome.storage.local.remove(['matchCache', 'lastMatchList', 'stageOverrides', 'fetchCoverage', 'matchHistorySync']);
     fetchCoverage = null;
     renderDateRangeFilter();
     allResults = [];
@@ -940,15 +1010,16 @@ fetchBtn.addEventListener('click', async () => {
 
   chrome.storage.local.set({ memberNumber, name, fetchTimeline: selectedFetchTimeline });
   lockInputs();
-  setStatus(`Opening PractiScore tab — fetch timeline: ${fetchTimeline.label}…`, '', true);
+  setStatus(`Opening PractiScore tab — ${fullHistory ? 'full history reconciliation' : `fetch timeline: ${fetchTimeline.label}`}…`, '', true);
   fetchBtn.disabled = true;
+  fullHistoryBtn.disabled = true;
   noDataEl.style.display   = 'none';
   debugLogEl.style.display = 'none';
   allResults = [];
 
   try {
     const response = await chrome.runtime.sendMessage({
-      action: 'fetchScores', memberNumber, name, fetchTimeline,
+      action: 'fetchScores', memberNumber, name, fetchTimeline, fullHistory,
     });
     if (!response.ok) throw new Error(response.error || 'Unknown error');
     if (response.data._not_logged_in_ps) {
@@ -1002,7 +1073,17 @@ fetchBtn.addEventListener('click', async () => {
     debugLogEl.style.display = 'block';
   } finally {
     fetchBtn.disabled = false;
+    fullHistoryBtn.disabled = false;
   }
+}
+
+fetchBtn.addEventListener('click', () => fetchScoresFromDashboard());
+fullHistoryBtn.addEventListener('click', () => {
+  const proceed = confirm(
+    'Scan every PractiScore Match History page?\n\n' +
+    'This preserves cached scores and preferences, but may take longer. Use it to find older delayed or backfilled matches.'
+  );
+  if (proceed) fetchScoresFromDashboard({ fullHistory: true });
 });
 
 // ── Analytics date-range presets ──────────────────────────────────────────────
@@ -1856,7 +1937,7 @@ function updateStatusCounts(verb) {
     ? ` · Fetch ${lastFetchScope.label}: ${lastFetchScope.inRangeCount ?? '?'} in range`
     : '';
   const detailNote = lastFetchDiagnostics
-    ? ` · Matches: ${lastFetchDiagnostics.extractedMatches} extracted, ${lastFetchDiagnostics.completeCacheReused} complete cached, ${lastFetchDiagnostics.partialRepairs} partial repaired, ${lastFetchDiagnostics.unknownRepairs} legacy repaired, ${lastFetchDiagnostics.newMatches} new · Stages: ${lastFetchDiagnostics.fetchedStages}/${lastFetchDiagnostics.expectedStages} fetched, ${lastFetchDiagnostics.failedStages} failed`
+    ? ` · History: ${lastFetchDiagnostics.historyPagesScanned} page(s), ${lastFetchDiagnostics.historyMode}, ${lastFetchDiagnostics.historyStopReason}${lastFetchDiagnostics.fullScanFallback ? ' (full-scan fallback)' : ''} · Matches: ${lastFetchDiagnostics.extractedMatches} extracted, ${lastFetchDiagnostics.discoveredNewMatches} newly discovered, ${lastFetchDiagnostics.completeCacheReused} complete cached, ${lastFetchDiagnostics.partialRepairs} partial repaired, ${lastFetchDiagnostics.unknownRepairs} legacy repaired, ${lastFetchDiagnostics.newMatches} detail fetches · Stages: ${lastFetchDiagnostics.fetchedStages}/${lastFetchDiagnostics.expectedStages} fetched, ${lastFetchDiagnostics.failedStages} failed`
     : '';
   setStatus(`${prefix}${divisionNote} ${uspsa} USPSA match(es) — ${scored} with scores${checkedNote}.${unconfirmedNote}${skippedNote}${fetchNote}${detailNote}`, 'success');
 }

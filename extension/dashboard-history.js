@@ -533,6 +533,7 @@ async function deleteMatch(match) {
     deselectedMatches: [...deselectedMatches],
     stageOverrides,
   });
+  await chrome.storage.local.remove('matchHistorySync');
 
   renderAll();
   renderMatchList();

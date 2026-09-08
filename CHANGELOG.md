@@ -4,6 +4,29 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
+### Added
+
+- Added versioned local-data backup and validated restore controls for recovery
+  when an unpacked extension is loaded from a different folder or receives a
+  new identity.
+- Added explicit and periodic full history reconciliation for discovering older
+  delayed or backfilled PractiScore matches.
+
+### Changed
+
+- Routine PractiScore refreshes now scan newest history pages first and stop
+  after a conservative two-page overlap with trusted same-member sync metadata.
+- Compatible complete cache records now migrate non-destructively to the current
+  schema instead of being blanket-refetched.
+
+### Fixed
+
+- Upgrade guidance now preserves the loaded unpacked folder and uses Chrome's
+  Reload action, preventing accidental storage-namespace changes during normal
+  updates.
+- Incomplete pagination and corrupt sync metadata preserve existing history and
+  coverage while diagnostics explain the fallback and stop reason.
+
 ## v1.7.0 — 2026-09-07
 
 ### Highlights

@@ -2,9 +2,27 @@
 
 const PS_BASE = 'https://practiscore.com';
 const USPSA_BASE = 'https://uspsa.org';
-const CACHE_SCHEMA_VERSION = 1;
+const CACHE_SCHEMA_VERSION = 2;
+const STORAGE_SCHEMA_VERSION = 2;
+const HISTORY_SYNC_SCHEMA_VERSION = 1;
+const BACKUP_FORMAT_VERSION = 1;
 const MAX_HISTORY_PAGES = 100;
 const MAX_RESULTS_PAGES = 100;
+const HISTORY_OVERLAP_PAGES = 2;
+const FULL_HISTORY_SCAN_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
+const FULL_HISTORY_SCAN_RUN_INTERVAL = 10;
+const MAX_BACKUP_BYTES = 8 * 1024 * 1024;
+const BACKUP_KEYS = Object.freeze([
+  'memberNumber', 'name', 'matchCache', 'lastMatchList', 'stageOverrides',
+  'fetchCoverage', 'deselectedMatches', 'classificationData', 'selectedDivision',
+  'fetchTimeline', 'last8Matches', 'matchTypeOverrides', 'matchHistorySync',
+  'storageMetadata', 'theme',
+]);
+
+const storageMigrationPromise = migrateStorage().catch(error => {
+  console.error('[HFC] Storage migration failed without changing cached data:', error);
+  return { migrated: false, error: error.message };
+});
 
 // ── Open dashboard tab (or focus if already open) ─────────────────────────────
 chrome.action.onClicked.addListener(async () => {
@@ -21,7 +39,7 @@ chrome.action.onClicked.addListener(async () => {
 // ── Message handler ───────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'fetchScores') {
-    fetchScores(msg.memberNumber, msg.name, msg.fetchTimeline)
+    fetchScores(msg.memberNumber, msg.name, msg.fetchTimeline, { fullHistory: msg.fullHistory === true })
       .then(data  => sendResponse({ ok: true,  data }))
       .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -44,9 +62,259 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(err  => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.action === 'initializeStorage') {
+    storageMigrationPromise
+      .then(data => sendResponse({ ok: true, data }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+  if (msg.action === 'exportBackup') {
+    createBackup()
+      .then(data => sendResponse({ ok: true, data }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+  if (msg.action === 'importBackup') {
+    importBackup(msg.backup, { replaceExistingOwner: msg.replaceExistingOwner === true })
+      .then(data => sendResponse({ ok: true, data }))
+      .catch(err => sendResponse({ ok: false, error: err.message, code: err.code || null }));
+    return true;
+  }
 });
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizedOwner(memberNumber) {
+  return String(memberNumber || '').trim().toUpperCase() || null;
+}
+
+function ownerIdentity(memberNumber, name) {
+  const member = normalizedOwner(memberNumber);
+  if (member) return `member:${member}`;
+  const normalizedName = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return normalizedName ? `name:${normalizedName}` : null;
+}
+
+function isCompatibleCompleteCache(value) {
+  if (!isRecord(value) || !Array.isArray(value.stages)) return false;
+  const metadata = value.cache_completeness;
+  return isRecord(metadata) && metadata.state === 'complete' &&
+    Number.isInteger(metadata.expected_stage_count) &&
+    metadata.expected_stage_count === metadata.fetched_stage_count &&
+    Array.isArray(metadata.failed_stages) && metadata.failed_stages.length === 0 &&
+    value.stages.length === metadata.expected_stage_count;
+}
+
+async function migrateStorage() {
+  const stored = await chrome.storage.local.get(['memberNumber', 'matchCache', 'storageMetadata']);
+  const previousVersion = Number(stored.storageMetadata?.schemaVersion) || 0;
+  if (previousVersion >= STORAGE_SCHEMA_VERSION) {
+    return { migrated: false, from: previousVersion, to: STORAGE_SCHEMA_VERSION, cacheEntriesMigrated: 0 };
+  }
+
+  const matchCache = isRecord(stored.matchCache) ? { ...stored.matchCache } : {};
+  let cacheEntriesMigrated = 0;
+  for (const [matchId, cached] of Object.entries(matchCache)) {
+    if (!isCompatibleCompleteCache(cached)) continue;
+    const schemaVersion = Number(cached.cache_completeness?.schema_version) || 0;
+    if (schemaVersion >= CACHE_SCHEMA_VERSION) continue;
+    matchCache[matchId] = {
+      ...cached,
+      cache_completeness: { ...cached.cache_completeness, schema_version: CACHE_SCHEMA_VERSION },
+    };
+    cacheEntriesMigrated++;
+  }
+
+  const storageMetadata = {
+    schemaVersion: STORAGE_SCHEMA_VERSION,
+    migratedFrom: previousVersion,
+    migratedAt: Date.now(),
+    extensionVersion: chrome.runtime.getManifest().version,
+  };
+  await chrome.storage.local.set({
+    storageMetadata,
+    ...(cacheEntriesMigrated > 0 ? { matchCache } : {}),
+  });
+  console.log(`[HFC] Storage migration ${previousVersion} → ${STORAGE_SCHEMA_VERSION}; ${cacheEntriesMigrated} compatible cache record(s) preserved.`);
+  return { migrated: true, from: previousVersion, to: STORAGE_SCHEMA_VERSION, cacheEntriesMigrated };
+}
+
+function validateBackupData(backup) {
+  let byteLength;
+  try {
+    byteLength = new TextEncoder().encode(JSON.stringify(backup)).length;
+  } catch (_) {
+    throw new Error('Backup is not valid JSON data.');
+  }
+  if (byteLength > MAX_BACKUP_BYTES) throw new Error('Backup exceeds the 8 MB safety limit.');
+  if (!isRecord(backup) || backup.format !== 'hit-factor-charts-backup' || backup.version !== BACKUP_FORMAT_VERSION) {
+    throw new Error('Unsupported Hit Factor Charts backup format or version.');
+  }
+  if (!isRecord(backup.data)) throw new Error('Backup data is missing.');
+
+  const data = {};
+  for (const key of BACKUP_KEYS) {
+    if (Object.hasOwn(backup.data, key)) data[key] = backup.data[key];
+  }
+  if (typeof data.memberNumber !== 'undefined' && (typeof data.memberNumber !== 'string' || data.memberNumber.length > 64)) {
+    throw new Error('Backup member number is invalid.');
+  }
+  if (typeof data.name !== 'undefined' && (typeof data.name !== 'string' || data.name.length > 200)) {
+    throw new Error('Backup name is invalid.');
+  }
+  if (data.lastMatchList && (!Array.isArray(data.lastMatchList) || data.lastMatchList.length > 10000 ||
+      data.lastMatchList.some(match => !isRecord(match) || typeof match.match_id !== 'string' ||
+        typeof match.match_name !== 'string' || typeof match.date !== 'string'))) {
+    throw new Error('Backup match history is invalid.');
+  }
+  if (data.matchCache && (!isRecord(data.matchCache) || Object.keys(data.matchCache).length > 10000)) {
+    throw new Error('Backup match cache is invalid.');
+  }
+  if (Object.keys(data.matchCache || {}).some(key => !key || ['__proto__', 'prototype', 'constructor'].includes(key))) {
+    throw new Error('Backup match cache contains an invalid identifier.');
+  }
+  const expectedOwner = normalizedOwner(data.memberNumber);
+  for (const cached of Object.values(data.matchCache || {})) {
+    if (!isRecord(cached) || cached.cached_for !== expectedOwner) {
+      throw new Error('Backup cache ownership does not match its member number.');
+    }
+    if (typeof cached.stages !== 'undefined' &&
+        (!Array.isArray(cached.stages) || cached.stages.some(stage => !isRecord(stage)))) {
+      throw new Error('Backup cache contains invalid stage data.');
+    }
+    for (const stage of cached.stages || []) {
+      if ((stage.name !== undefined && stage.name !== null && typeof stage.name !== 'string') ||
+          (stage.classifier_code !== undefined && stage.classifier_code !== null && typeof stage.classifier_code !== 'string') ||
+          (stage.hit_columns !== undefined && !isRecord(stage.hit_columns)) ||
+          (stage.xdiv_benchmarks !== undefined && !isRecord(stage.xdiv_benchmarks))) {
+        throw new Error('Backup cache contains invalid stage fields.');
+      }
+    }
+    if (typeof cached.cache_completeness !== 'undefined') {
+      const completeness = cached.cache_completeness;
+      if (!isRecord(completeness) || !['complete', 'partial', 'unknown'].includes(completeness.state) ||
+          !Number.isInteger(completeness.schema_version) ||
+          (completeness.expected_stage_count !== null && !Number.isInteger(completeness.expected_stage_count)) ||
+          !Number.isInteger(completeness.fetched_stage_count) || !Array.isArray(completeness.failed_stages)) {
+        throw new Error('Backup cache completeness metadata is invalid.');
+      }
+    }
+  }
+  if (data.classificationData?.member_number && normalizedOwner(data.classificationData.member_number) !== expectedOwner) {
+    throw new Error('Backup classification ownership does not match its member number.');
+  }
+  if (data.matchHistorySync?.cachedFor !== undefined && data.matchHistorySync.cachedFor !== expectedOwner) {
+    throw new Error('Backup history-sync ownership does not match its member number.');
+  }
+  if (data.classificationData?.classifiers !== undefined &&
+      (!Array.isArray(data.classificationData.classifiers) ||
+        data.classificationData.classifiers.some(classifier => !isRecord(classifier) ||
+          (classifier.date !== undefined && classifier.date !== null && typeof classifier.date !== 'string') ||
+          (classifier.code !== undefined && classifier.code !== null && typeof classifier.code !== 'string') ||
+          (classifier.pct !== undefined && classifier.pct !== null && !Number.isFinite(classifier.pct)) ||
+          (classifier.hf !== undefined && classifier.hf !== null && !Number.isFinite(classifier.hf))))) {
+    throw new Error('Backup classification records are invalid.');
+  }
+  if (data.classificationData?.divisions !== undefined && !isRecord(data.classificationData.divisions)) {
+    throw new Error('Backup classification divisions are invalid.');
+  }
+  if (Object.values(data.classificationData?.divisions || {}).some(division => !isRecord(division) ||
+      (division.class_ !== undefined && division.class_ !== null && typeof division.class_ !== 'string') ||
+      (division.pct !== undefined && division.pct !== null && !Number.isFinite(division.pct)))) {
+    throw new Error('Backup classification division values are invalid.');
+  }
+  const objectKeys = ['stageOverrides', 'matchTypeOverrides', 'storageMetadata'];
+  const nullableObjectKeys = ['fetchCoverage', 'classificationData', 'matchHistorySync'];
+  if (objectKeys.some(key => typeof data[key] !== 'undefined' && !isRecord(data[key])) ||
+      nullableObjectKeys.some(key => data[key] !== null && typeof data[key] !== 'undefined' && !isRecord(data[key]))) {
+    throw new Error('Backup contains invalid structured preferences.');
+  }
+  if (Object.values(data.stageOverrides || {}).some(matchOverrides => !isRecord(matchOverrides) ||
+      Object.values(matchOverrides).some(override => !isRecord(override)))) {
+    throw new Error('Backup stage overrides are invalid.');
+  }
+  if (Object.values(data.matchTypeOverrides || {}).some(matchType => typeof matchType !== 'string')) {
+    throw new Error('Backup match type overrides are invalid.');
+  }
+  if (data.deselectedMatches && (!Array.isArray(data.deselectedMatches) || data.deselectedMatches.some(id => typeof id !== 'string'))) {
+    throw new Error('Backup match selections are invalid.');
+  }
+  if (typeof data.last8Matches !== 'undefined' && typeof data.last8Matches !== 'boolean') {
+    throw new Error('Backup Last 8 preference is invalid.');
+  }
+  if (typeof data.selectedDivision !== 'undefined' && data.selectedDivision !== null &&
+      !['co', 'lo', 'opn', 'prod', 'ltd', 'l10', 'pcc', 'rev', 'ss'].includes(data.selectedDivision)) {
+    throw new Error('Backup division preference is invalid.');
+  }
+  if (typeof data.fetchTimeline !== 'undefined' && !Object.hasOwn(FETCH_TIMELINES, data.fetchTimeline)) {
+    throw new Error('Backup fetch timeline is invalid.');
+  }
+  if (typeof data.theme !== 'undefined' && !['light', 'dark'].includes(data.theme)) {
+    throw new Error('Backup theme preference is invalid.');
+  }
+  const expectedIdentity = ownerIdentity(data.memberNumber, data.name);
+  if (!isRecord(backup.owner) || normalizedOwner(backup.owner.memberNumber) !== expectedOwner ||
+      String(backup.owner.name || '') !== String(data.name || '')) {
+    throw new Error('Backup owner metadata does not match its data.');
+  }
+  return { data, byteLength, expectedOwner, expectedIdentity };
+}
+
+async function createBackup() {
+  await storageMigrationPromise;
+  const data = await chrome.storage.local.get(BACKUP_KEYS);
+  const backup = {
+    format: 'hit-factor-charts-backup',
+    version: BACKUP_FORMAT_VERSION,
+    exportedAt: new Date().toISOString(),
+    extensionVersion: chrome.runtime.getManifest().version,
+    owner: { memberNumber: normalizedOwner(data.memberNumber), name: String(data.name || '') },
+    data,
+  };
+  validateBackupData(backup);
+  return backup;
+}
+
+async function importBackup(backup, { replaceExistingOwner = false } = {}) {
+  await storageMigrationPromise;
+  const validated = validateBackupData(backup);
+  const current = await chrome.storage.local.get(['memberNumber', 'name', 'lastMatchList', 'matchCache']);
+  const currentIdentity = ownerIdentity(current.memberNumber, current.name);
+  const hasCurrentHistory = (Array.isArray(current.lastMatchList) && current.lastMatchList.length > 0) ||
+    (isRecord(current.matchCache) && Object.keys(current.matchCache).length > 0);
+  if (hasCurrentHistory && currentIdentity !== validated.expectedIdentity && !replaceExistingOwner) {
+    const error = new Error('This backup belongs to a different member. Confirm replacement to continue.');
+    error.code = 'OWNER_CONFLICT';
+    throw error;
+  }
+
+  const previousManagedData = await chrome.storage.local.get(BACKUP_KEYS);
+  const omittedKeys = BACKUP_KEYS.filter(key => !Object.hasOwn(validated.data, key));
+  try {
+    await chrome.storage.local.set(validated.data);
+    if (omittedKeys.length) await chrome.storage.local.remove(omittedKeys);
+    await migrateStorage();
+  } catch (error) {
+    try {
+      await chrome.storage.local.set(previousManagedData);
+      const previouslyAbsentKeys = BACKUP_KEYS.filter(key => !Object.hasOwn(previousManagedData, key));
+      if (previouslyAbsentKeys.length) await chrome.storage.local.remove(previouslyAbsentKeys);
+    } catch (rollbackError) {
+      throw new Error(`Restore failed and local rollback could not complete: ${rollbackError.message}`);
+    }
+    throw error;
+  }
+  return {
+    importedKeys: Object.keys(validated.data).length,
+    matches: validated.data.lastMatchList?.length || 0,
+    cacheEntries: Object.keys(validated.data.matchCache || {}).length,
+    byteLength: validated.byteLength,
+  };
+}
+
 async function getCache() {
   const d = await chrome.storage.local.get('matchCache');
   return d.matchCache || {};
@@ -198,6 +466,70 @@ function mergeMatchLists(existing, incoming, { preserveMissing = true } = {}) {
     }
   }
   return merged;
+}
+
+function normalizeHistorySync(value, memberNumber) {
+  if (!isRecord(value) || value.schemaVersion !== HISTORY_SYNC_SCHEMA_VERSION) return null;
+  if (value.cachedFor !== normalizedOwner(memberNumber)) return null;
+  const highWaterDate = normalizeDateOnly(value.highWaterDate);
+  if (!highWaterDate || !Array.isArray(value.highWaterIds) || value.highWaterIds.length === 0 ||
+      value.highWaterIds.some(id => typeof id !== 'string') ||
+      !Array.isArray(value.knownIds) || value.knownIds.length === 0 || value.knownIds.length > 10000 ||
+      value.knownIds.some(id => typeof id !== 'string')) return null;
+  const lastFullScanAt = Number(value.lastFullScanAt);
+  const runsSinceFullScan = Number(value.runsSinceFullScan);
+  if (!Number.isFinite(lastFullScanAt) || lastFullScanAt <= 0 ||
+      !Number.isInteger(runsSinceFullScan) || runsSinceFullScan < 0) return null;
+  return {
+    schemaVersion: HISTORY_SYNC_SCHEMA_VERSION,
+    cachedFor: value.cachedFor,
+    highWaterDate,
+    highWaterIds: [...new Set(value.highWaterIds)],
+    knownIds: [...new Set(value.knownIds)],
+    lastFullScanAt,
+    lastSuccessfulScanAt: Number(value.lastSuccessfulScanAt) || lastFullScanAt,
+    runsSinceFullScan,
+  };
+}
+
+function buildHistorySync(matchList, discoveredMatches, memberNumber, previous, { fullScan }) {
+  const datedMatches = [...(matchList || []), ...(discoveredMatches || [])]
+    .map(match => ({ id: match?.match_id, date: normalizeDateOnly(match?.date) }))
+    .filter(match => match.id && match.date);
+  if (!datedMatches.length) return null;
+  const highWaterDate = datedMatches.reduce((latest, match) => match.date > latest ? match.date : latest, datedMatches[0].date);
+  const knownIds = fullScan
+    ? [...new Set((discoveredMatches || []).map(match => match?.match_id).filter(Boolean))]
+    : [...new Set([...(previous.knownIds || []), ...(discoveredMatches || []).map(match => match?.match_id).filter(Boolean)])];
+  const now = Date.now();
+  return {
+    schemaVersion: HISTORY_SYNC_SCHEMA_VERSION,
+    cachedFor: normalizedOwner(memberNumber),
+    highWaterDate,
+    highWaterIds: [...new Set(datedMatches.filter(match => match.date === highWaterDate).map(match => match.id))],
+    knownIds,
+    lastFullScanAt: fullScan ? now : previous.lastFullScanAt,
+    lastSuccessfulScanAt: now,
+    runsSinceFullScan: fullScan ? 0 : previous.runsSinceFullScan + 1,
+  };
+}
+
+function resolveHistoryDiscovery(previousMatchList, storedSync, memberNumber, forceFull = false, now = Date.now()) {
+  const sync = normalizeHistorySync(storedSync, memberNumber);
+  const knownIds = new Set([
+    ...(previousMatchList || []).map(match => match?.match_id).filter(Boolean),
+    ...(sync?.knownIds || []),
+  ]);
+  if (forceFull) return { mode: 'full', reason: 'explicit full history reconciliation', knownIds, sync: null, fallback: false };
+  if (!sync || knownIds.size === 0) {
+    return { mode: 'full', reason: 'missing or invalid sync metadata', knownIds, sync: null, fallback: true };
+  }
+  const periodicFullScanDue = now - sync.lastFullScanAt >= FULL_HISTORY_SCAN_INTERVAL_MS ||
+    sync.runsSinceFullScan >= FULL_HISTORY_SCAN_RUN_INTERVAL;
+  if (periodicFullScanDue) {
+    return { mode: 'full', reason: 'periodic backfill reconciliation due', knownIds, sync, fallback: true };
+  }
+  return { mode: 'incremental', reason: 'verified sync metadata available', knownIds, sync, fallback: false };
 }
 
 // ── Match type detection ──────────────────────────────────────────────────────
@@ -1203,13 +1535,17 @@ async function fetchUSPSAClassification(memberNumber, push) {
 }
 
 // ── Fetch all match scores ────────────────────────────────────────────────────
-async function fetchScores(memberNumber, name, requestedTimeline) {
+async function fetchScores(memberNumber, name, requestedTimeline, { fullHistory = false } = {}) {
   const log = [];
   const push = m => { log.push(m); console.log('[HFC]', m); };
   let tabId = null;
   const fetchScope = resolveFetchTimeline(requestedTimeline);
 
   try {
+    const migration = await storageMigrationPromise;
+    if (migration?.migrated) {
+      push(`Preserved ${migration.cacheEntriesMigrated} compatible cache record(s) during storage migration ${migration.from} → ${migration.to}.`);
+    }
     const bounds = fetchScope.value === 'all' ? '' : ` (${fetchScope.start} through ${fetchScope.end})`;
     push(`Loading match history — fetch timeline: ${fetchScope.label}${bounds}…`);
     const tab = await chrome.tabs.create({ url: `${PS_BASE}/associate/step2`, active: false });
@@ -1224,10 +1560,15 @@ async function fetchScores(memberNumber, name, requestedTimeline) {
       return { results: [], log, _not_logged_in_ps: true };
     }
 
-    const history = await collectMatchHistory(tabId, push);
+    const stored = await chrome.storage.local.get(['lastMatchList', 'matchCache', 'matchTypeOverrides', 'fetchCoverage', 'matchHistorySync']);
+    const previousMatchList = Array.isArray(stored.lastMatchList) ? stored.lastMatchList : [];
+    const discovery = resolveHistoryDiscovery(previousMatchList, stored.matchHistorySync, memberNumber, fullHistory);
+    push(`History discovery: ${discovery.mode}; ${discovery.reason}.`);
+    const history = await collectMatchHistory(tabId, push, discovery);
     const rawMatchList = history.matches;
     push(`Extracted ${rawMatchList.length} match(es) across ${history.pagesRead} history page(s).`);
-    if (!history.complete) push(`Match history extraction incomplete (${history.reason}); preserving cached history and coverage.`);
+    push(`History stop: ${history.reason}.`);
+    if (!history.complete) push('Match history extraction incomplete; preserving cached history, sync metadata, and coverage.');
     console.log('[HFC] matchList:', JSON.stringify(rawMatchList, null, 2));
 
     // Annotate every match with its detected type
@@ -1250,22 +1591,24 @@ async function fetchScores(memberNumber, name, requestedTimeline) {
     if (filtered.futureDateCount) push(`Skipping ${filtered.futureDateCount} future-dated match(es).`);
     if (filtered.beforeCutoffCount) push(`Skipping ${filtered.beforeCutoffCount} match(es) before ${fetchScope.start}.`);
 
-    const stored = await chrome.storage.local.get(['lastMatchList', 'matchCache', 'matchTypeOverrides', 'fetchCoverage']);
-    const previousMatchList = stored.lastMatchList || [];
     const cache = stored.matchCache || {};
     const matchTypeOverrides = normalizeMatchTypeOverrides(stored.matchTypeOverrides);
-    const preserveMissingHistory = fetchScope.value !== 'all' || !history.complete;
-    let mergedMatchList = mergeMatchLists(previousMatchList, matchList, { preserveMissing: preserveMissingHistory });
+    const preserveMissingHistory = !history.fullScanComplete;
+    let mergedMatchList = mergeMatchLists(previousMatchList, annotatedMatchList, { preserveMissing: preserveMissingHistory });
     const hasUsableMatchDate = annotatedMatchList.some(match => {
       const date = normalizeDateOnly(match.date);
       return date && date <= localDateOnly();
     });
-    const fetchCoverage = hasUsableMatchDate && history.complete
+    const fetchCoverage = hasUsableMatchDate && history.fullScanComplete
       ? mergeFetchCoverage(stored.fetchCoverage, fetchScope)
       : normalizeFetchCoverage(stored.fetchCoverage);
+    const matchHistorySync = history.complete && (history.fullScanComplete || history.verifiedOverlap)
+      ? buildHistorySync(mergedMatchList, rawMatchList, memberNumber, discovery.sync, { fullScan: history.fullScanComplete })
+      : null;
     await chrome.storage.local.set({
       lastMatchList: mergedMatchList,
       ...(fetchCoverage ? { fetchCoverage } : {}),
+      ...(matchHistorySync ? { matchHistorySync } : {}),
     });
     const mergedById = new Map(mergedMatchList.map(match => [match.match_id, match]));
     const workMatches = matchList.map(match => mergedById.get(match.match_id) || match);
@@ -1359,7 +1702,7 @@ async function fetchScores(memberNumber, name, requestedTimeline) {
     }
 
     // Re-save the merged list with any match types confirmed from results pages.
-    mergedMatchList = mergeMatchLists(previousMatchList, workMatches, { preserveMissing: preserveMissingHistory });
+    mergedMatchList = mergeMatchLists(mergedMatchList, workMatches, { preserveMissing: true });
     await chrome.storage.local.set({ lastMatchList: mergedMatchList });
 
     const n = results.filter(r => r.overall_pct != null).length;
@@ -1401,6 +1744,12 @@ async function fetchScores(memberNumber, name, requestedTimeline) {
       fetchedStages: fetchedStageCount,
       failedStages: failedStageCount,
       historyComplete: history.complete,
+      historyPagesScanned: history.pagesRead,
+      historyMode: discovery.mode,
+      historyStopReason: history.reason,
+      fullScanFallback: discovery.fallback,
+      fullScanComplete: history.fullScanComplete,
+      discoveredNewMatches: rawMatchList.filter(match => !discovery.knownIds.has(match.match_id)).length,
     };
     return { results: combinedResults, log, classificationData, _not_logged_in_uspsa, fetchScope, fetchCoverage, fetchDiagnostics };
 
@@ -1642,9 +1991,12 @@ function clickNextMatchHistoryPage() {
   return true;
 }
 
-async function collectMatchHistory(tabId, push) {
+async function collectMatchHistory(tabId, push, discovery = { mode: 'full', knownIds: new Set(), sync: null }) {
   const matches = new Map();
   const pageSignatures = new Set();
+  let settledOverlapPages = 0;
+  let incrementalStopDisabledReason = null;
+  let previousPageOldestDate = null;
 
   for (let pageNumber = 1; pageNumber <= MAX_HISTORY_PAGES; pageNumber++) {
     let page = null;
@@ -1654,17 +2006,70 @@ async function collectMatchHistory(tabId, push) {
       await sleep(400 + attempt * 150);
     }
     if (!page?._ready || !page.signature || pageSignatures.has(page.signature)) {
-      return { matches: [...matches.values()], complete: false, pagesRead: pageSignatures.size, reason: page?._debug || 'history page did not settle' };
+      return {
+        matches: [...matches.values()], complete: false, fullScanComplete: false,
+        verifiedOverlap: false, pagesRead: pageSignatures.size,
+        reason: page?._debug || 'history page did not settle',
+      };
     }
 
     pageSignatures.add(page.signature);
     for (const match of page.matches || []) matches.set(match.match_id, match);
-    if (!page.hasNextPage) return { matches: [...matches.values()], complete: true, pagesRead: pageNumber };
+
+    if (discovery.mode === 'incremental' && !incrementalStopDisabledReason) {
+      const pageMatches = page.matches || [];
+      const pageDates = pageMatches.map(match => normalizeDateOnly(match.date));
+      if (!pageMatches.length || pageDates.some(date => !date)) {
+        incrementalStopDisabledReason = 'malformed or empty history page required full pagination';
+        settledOverlapPages = 0;
+        push('Incremental boundary disabled: malformed or empty history data; continuing with a full scan.');
+      } else {
+        const newestPageDate = pageDates.reduce((latest, date) => date > latest ? date : latest, pageDates[0]);
+        const oldestPageDate = pageDates.reduce((earliest, date) => date < earliest ? date : earliest, pageDates[0]);
+        if (previousPageOldestDate && newestPageDate > previousPageOldestDate) {
+          incrementalStopDisabledReason = 'history pages were reordered; completed full pagination';
+          settledOverlapPages = 0;
+          push('Incremental boundary disabled: history page dates were not newest-first; continuing with a full scan.');
+        }
+        previousPageOldestDate = oldestPageDate;
+        const unknownIds = pageMatches.filter(match => !discovery.knownIds.has(match.match_id));
+        const atOrBeforeHighWater = pageDates.every(date => date <= discovery.sync.highWaterDate);
+        settledOverlapPages = !incrementalStopDisabledReason && unknownIds.length === 0 && atOrBeforeHighWater
+          ? settledOverlapPages + 1
+          : 0;
+        push(`  History page ${pageNumber}: ${unknownIds.length} unknown ID(s), overlap ${settledOverlapPages}/${HISTORY_OVERLAP_PAGES}.`);
+        if (settledOverlapPages >= HISTORY_OVERLAP_PAGES) {
+          return {
+            matches: [...matches.values()], complete: true, fullScanComplete: false,
+            verifiedOverlap: true, pagesRead: pageNumber,
+            reason: `verified overlap across ${HISTORY_OVERLAP_PAGES} settled page(s)`,
+          };
+        }
+      }
+    }
+
+    if (!page.hasNextPage) {
+      return {
+        matches: [...matches.values()], complete: true, fullScanComplete: true,
+        verifiedOverlap: false, pagesRead: pageNumber,
+        reason: incrementalStopDisabledReason || 'reached end of history',
+      };
+    }
 
     const advanced = await runInTab(tabId, clickNextMatchHistoryPage);
-    if (!advanced) return { matches: [...matches.values()], complete: false, pagesRead: pageNumber, reason: 'next history page could not be selected' };
+    if (!advanced) {
+      return {
+        matches: [...matches.values()], complete: false, fullScanComplete: false,
+        verifiedOverlap: false, pagesRead: pageNumber,
+        reason: 'next history page could not be selected',
+      };
+    }
   }
 
   push(`Match history pagination exceeded ${MAX_HISTORY_PAGES} pages.`);
-  return { matches: [...matches.values()], complete: false, pagesRead: MAX_HISTORY_PAGES, reason: 'history page limit exceeded' };
+  return {
+    matches: [...matches.values()], complete: false, fullScanComplete: false,
+    verifiedOverlap: false, pagesRead: MAX_HISTORY_PAGES,
+    reason: 'history page limit exceeded',
+  };
 }
