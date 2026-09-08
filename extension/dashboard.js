@@ -446,7 +446,6 @@ function computeMatchTimePct(match) {
   const values = getMetricStages(match).map(computeTimePct).filter(value => value != null);
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
-
 // ── USPSA Classifier lookup ───────────────────────────────────────────────────
 // Maps classifier number (e.g. "99-11") → official name.
 // isClassifierStage() checks this table first, then falls back to regex for
