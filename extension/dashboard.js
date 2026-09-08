@@ -183,8 +183,7 @@ function showUpdateBanner(latestVersion, zipUrl, releasePageUrl, releaseNotes) {
 
 checkForUpdate();
 
-const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
-const themeToggle = document.getElementById('themeToggle'), themeSettings = document.getElementById('themeSettings');
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)'), themeToggle = document.getElementById('themeToggle'), themeSettings = document.getElementById('themeSettings');
 const validThemeModes = new Set(['system', 'light', 'dark']),
   validAccents = new Set(['blue', 'dark-green', 'bright-green', 'purple']);
 const selectedThemeMode = () => document.querySelector('input[name="themeMode"]:checked').value,
@@ -195,8 +194,7 @@ function applyThemeSettings(mode, accent) {
 }
 function persistThemeSettings(mode, accent) {
   const values = { theme: mode, themeMode: mode, accent }; chrome.storage.local.set(values); chrome.storage.sync.set(values);
-}
-Promise.all([chrome.storage.sync.get(['themeMode', 'theme', 'accent']), chrome.storage.local.get(['themeMode', 'theme', 'accent'])]).then(([syncData, localData]) => {
+} Promise.all([chrome.storage.sync.get(['themeMode', 'theme', 'accent']), chrome.storage.local.get(['themeMode', 'theme', 'accent'])]).then(([syncData, localData]) => {
   const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme].find(value => validThemeModes.has(value)) || 'system', accent = [syncData.accent, localData.accent].find(value => validAccents.has(value)) || 'blue';
   applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
 });
