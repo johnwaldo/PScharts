@@ -373,7 +373,7 @@ function exportChartCSV() {
     'Stage', 'Stage HF', 'Stage Match %', 'Stage Time', 'A', 'B', 'C', 'D', 'M', 'NS', 'M+NS', 'P',
     'Stage Included', 'Stage Note', 'CM #', 'CM Name', 'USPSA %',
     'Adjusted %', 'Adjusted Ref Division', 'Adjusted Ref Class', 'Adjusted Ref HF',
-    'Adjusted Normalized HF', 'Adjusted Method',
+    'Adjusted Normalized HF', 'Adjusted Method', 'Time %', 'Fastest Combined Time',
   ];
   const rows = [headers];
 
@@ -425,6 +425,8 @@ function exportChartCSV() {
         adj?.refHF != null ? adj.refHF.toFixed(4) : '',
         adj?.normHF != null ? adj.normHF.toFixed(4) : '',
         adj?.method || '',
+        computeTimePct(s) != null ? computeTimePct(s).toFixed(2) : '',
+        s.fastest_combined_time != null ? s.fastest_combined_time.toFixed(2) : '',
       ]);
     }
   }

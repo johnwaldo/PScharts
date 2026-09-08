@@ -248,6 +248,7 @@ let selectedDatePreset = '6m';   // analytics range; resets to six months on das
 let classificationData = null;  // data from uspsa.org/classification/[memberNumber]
 let classifiersOnly  = false;   // when true, charts show only classifier stage scores
 let adjustedOnly     = false;   // when true, Score Over Time shows only adjusted match points
+let showTimePct      = false;   // opt-in experimental raw-time comparison
 let selectedFetchTimeline = '6m'; // pre-fetch request scope; independent of analytics range
 let last8Matches = false;       // post-fetch analytics limit; never truncates cached history
 let matchTypeOverrides = {};    // match_id -> manual type for otherwise unconfirmed matches
@@ -431,6 +432,22 @@ function computeAdjustedPct(stage, shooterDiv) {
     normHF:   bestNormalizedRef,
     method:   'top_hf',
   };
+}
+
+// Experimental pace comparison. It intentionally has no hit-factor, division,
+// power-factor, or inferred fallback benchmark.
+function computeTimePct(stage) {
+  if (isClassifierStage(stage)) return null;
+  const shooterTime = Number(stage?.time);
+  const fastestTime = Number(stage?.fastest_combined_time);
+  if (!Number.isFinite(shooterTime) || shooterTime <= 0 ||
+      !Number.isFinite(fastestTime) || fastestTime <= 0) return null;
+  return Math.min((fastestTime / shooterTime) * 100, 100);
+}
+
+function computeMatchTimePct(match) {
+  const values = getMetricStages(match).map(computeTimePct).filter(value => value != null);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
 // ── USPSA Classifier lookup ───────────────────────────────────────────────────
@@ -903,6 +920,7 @@ function switchView(view) {
   if (view !== 'ranked') {
     classifiersOnly = false;
     adjustedOnly = false;
+    showTimePct = false;
   }
   syncChartModeControls();
 }
@@ -911,6 +929,7 @@ function syncChartModeControls() {
   const modes = [
     ['classifiersOnlyChk', 'classifiersToggleWrap', classifiersOnly],
     ['adjustedOnlyChk', 'adjustedToggleWrap', adjustedOnly],
+    ['timePctChk', 'timePctToggleWrap', showTimePct],
   ];
   modes.forEach(([inputId, wrapId, active]) => {
     document.getElementById(inputId).checked = active;
@@ -924,9 +943,15 @@ function setChartMode(mode, enabled) {
   if (mode === 'classifiers') {
     classifiersOnly = enabled;
     if (enabled) adjustedOnly = false;
-  } else {
+    if (enabled) showTimePct = false;
+  } else if (mode === 'adjusted') {
     adjustedOnly = enabled;
     if (enabled) classifiersOnly = false;
+    if (enabled) showTimePct = false;
+  } else {
+    showTimePct = enabled;
+    if (enabled) classifiersOnly = false;
+    if (enabled) adjustedOnly = false;
   }
   syncChartModeControls();
   renderAll();
@@ -945,6 +970,9 @@ document.getElementById('classifiersOnlyChk').addEventListener('change', e => {
 
 document.getElementById('adjustedOnlyChk').addEventListener('change', e => {
   setChartMode('adjusted', e.target.checked);
+});
+document.getElementById('timePctChk').addEventListener('change', e => {
+  setChartMode('time', e.target.checked);
 });
 
 document.getElementById('exportCsvBtn').addEventListener('click', () => {
@@ -1625,6 +1653,14 @@ function renderAll() {
     points: adjPoints,
   };
 
+  const timeSeries = {
+    label: 'Time % (experimental)', color: '#0097a7', dash: true,
+    points: viewSorted.map(r => ({
+      date: r.date, y: computeMatchTimePct(r), label: r.match_name,
+      division: r.division, overall_pct: effectiveOverallPct(r),
+    })),
+  };
+
   if (adjustedOnly) {
     document.getElementById('chartTimeTitle').textContent = 'Adjusted % Over Time';
     if (adjPoints.length >= 2) {
@@ -1649,6 +1685,7 @@ function renderAll() {
   } else {
     // Add adjusted series if we have data (dashed line, distinct color)
     if (adjPoints.length >= 2) scoreSeries.push(adjustedSeries);
+    if (showTimePct) scoreSeries.push(timeSeries);
     drawMultiSeriesChart(document.getElementById('chartTime'), scoreSeries, allDates, {
       yLabel: 'Match performance %', yMin: 0, yMax: 100, invertY: false,
       trend: true, valueUnit: 'match%',

@@ -65,7 +65,7 @@ async function loadBackground(initialStorage = {}) {
   });
   vm.runInContext(`${backgroundSource}\n;globalThis.__hfcTest = {
     storageMigrationPromise, resolveHistoryDiscovery, collectMatchHistory,
-    normalizeHistorySync, createBackup, importBackup, fetchScores
+    normalizeHistorySync, createBackup, importBackup, fetchScores, isReusableMatchCache
   };`, context);
   await context.__hfcTest.storageMigrationPromise;
   return { context, local, api: context.__hfcTest };
@@ -79,7 +79,7 @@ const delayedId = '44444444-4444-4444-8444-444444444444';
 function completeCache(schemaVersion = 1) {
   return {
     cached_for: 'A103',
-    stages: [{ num: 1, name: 'Stage 1' }],
+    stages: [{ num: 1, name: 'Stage 1', time: 10, fastest_combined_time: 10, is_classifier: false }],
     cache_completeness: {
       schema_version: schemaVersion,
       state: 'complete',
@@ -113,9 +113,16 @@ test('compatible complete caches migrate without losing stages or preferences', 
   });
 
   assert.equal(local.data.storageMetadata.schemaVersion, 2);
-  assert.equal(local.data.matchCache[firstId].cache_completeness.schema_version, 2);
-  assert.deepEqual(local.data.matchCache[firstId].stages, [{ num: 1, name: 'Stage 1' }]);
+  assert.equal(local.data.matchCache[firstId].cache_completeness.schema_version, 3);
+  assert.deepEqual(local.data.matchCache[firstId].stages, [{ num: 1, name: 'Stage 1', time: 10, fastest_combined_time: 10, is_classifier: false }]);
   assert.deepEqual(local.data.stageOverrides[firstId], { '01|Stage 1': { included: false } });
+});
+
+test('complete caches without raw-time benchmarks are repaired instead of reused', async () => {
+  const { api } = await loadBackground();
+  const legacy = completeCache(2);
+  delete legacy.stages[0].fastest_combined_time;
+  assert.equal(api.isReusableMatchCache(legacy, 'A103'), false);
 });
 
 test('missing, corrupt, stale, and explicit metadata select full discovery', async () => {
