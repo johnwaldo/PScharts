@@ -31,7 +31,9 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 - **Last 8 analytics** — focus every chart, summary, classifier view, and CSV export on your eight most recent qualifying matches without re-fetching or trimming Match History
 - **Export as image** — save any match or individual stage as a PNG card (floppy-disk button on each match row)
 - **Export as CSV** — download all chart-visible data as a flat CSV (one row per stage) including CM numbers, USPSA %, HF, hit counts, adjusted %, and the selected reference division, class, HF, normalized HF, and benchmark method
-- **Light/dark theme** — defaults to light mode; toggle in the header; preference syncs across devices via Chrome storage
+- **Theme settings** — choose system, light, or dark brightness independently
+  from blue, dark green, bright green, or purple accents; preferences sync
+  across devices via Chrome storage
 - **Inter font** — bundled variable font for clean, consistent rendering at all weights
 - **Durable local caching** — history and preferences stay in browser storage;
   compatible schemas migrate in place, and a versioned backup can restore data

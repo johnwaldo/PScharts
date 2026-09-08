@@ -108,6 +108,7 @@ function GRID_COLOR() { return cssVar('--grid'); }
 function AXIS_COLOR() { return cssVar('--axis'); }
 function TEXT_COLOR() { return cssVar('--chart-text'); }
 function CHART_BG()   { return cssVar('--chart-bg'); }
+function ACCENT_COLOR() { return cssVar('--accent'); }
 
 // USPSA classification bands (% thresholds)
 const CLASS_BANDS = [
@@ -538,7 +539,7 @@ function drawLineChart(canvas, points, opts = {}) {
   clearCanvas(ctx, canvas);
 
   const {
-    yLabel = '', yMin, yMax, invertY = false, color = '#4a9eff', trend = false,
+    yLabel = '', yMin, yMax, invertY = false, color = ACCENT_COLOR(), trend = false,
     showPercentageReferenceGuides = false,
   } = opts;
 
