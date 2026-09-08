@@ -434,14 +434,11 @@ function computeAdjustedPct(stage, shooterDiv) {
   };
 }
 
-// Experimental pace comparison. It intentionally has no hit-factor, division,
-// power-factor, or inferred fallback benchmark.
+// Experimental raw-time pace comparison; no inferred or weighted fallback.
 function computeTimePct(stage) {
   if (isClassifierStage(stage)) return null;
-  const shooterTime = Number(stage?.time);
-  const fastestTime = Number(stage?.fastest_combined_time);
-  if (!Number.isFinite(shooterTime) || shooterTime <= 0 ||
-      !Number.isFinite(fastestTime) || fastestTime <= 0) return null;
+  const shooterTime = Number(stage?.time), fastestTime = Number(stage?.fastest_combined_time);
+  if (!Number.isFinite(shooterTime) || shooterTime <= 0 || !Number.isFinite(fastestTime) || fastestTime <= 0) return null;
   return Math.min((fastestTime / shooterTime) * 100, 100);
 }
 
@@ -449,7 +446,6 @@ function computeMatchTimePct(match) {
   const values = getMetricStages(match).map(computeTimePct).filter(value => value != null);
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
-
 // ── USPSA Classifier lookup ───────────────────────────────────────────────────
 // Maps classifier number (e.g. "99-11") → official name.
 // isClassifierStage() checks this table first, then falls back to regex for
