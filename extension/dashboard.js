@@ -191,15 +191,13 @@ const selectedThemeMode = () => document.querySelector('input[name="themeMode"]:
   selectedAccent = () => document.querySelector('input[name="accent"]:checked').value;
 function applyThemeSettings(mode, accent) {
   document.documentElement.setAttribute('data-theme', mode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : mode); document.documentElement.setAttribute('data-accent', accent);
-  document.querySelector(`input[name="themeMode"][value="${mode}"]`).checked = true;
-  document.querySelector(`input[name="accent"][value="${accent}"]`).checked = true; renderAll();
+  document.querySelector(`input[name="themeMode"][value="${mode}"]`).checked = true; document.querySelector(`input[name="accent"][value="${accent}"]`).checked = true; renderAll();
 }
 function persistThemeSettings(mode, accent) {
   const values = { theme: mode, themeMode: mode, accent }; chrome.storage.local.set(values); chrome.storage.sync.set(values);
 }
 Promise.all([chrome.storage.sync.get(['themeMode', 'theme', 'accent']), chrome.storage.local.get(['themeMode', 'theme', 'accent'])]).then(([syncData, localData]) => {
-  const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme].find(value => validThemeModes.has(value)) || 'system';
-  const accent = [syncData.accent, localData.accent].find(value => validAccents.has(value)) || 'blue';
+  const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme].find(value => validThemeModes.has(value)) || 'system', accent = [syncData.accent, localData.accent].find(value => validAccents.has(value)) || 'blue';
   applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
 });
 themeToggle.addEventListener('click', () => {
