@@ -80,7 +80,45 @@
       margin-left: auto;
       flex-shrink: 0;
     }
-    #themeToggle:hover { color: #ccc; border-color: #4a9eff; }
+    #themeToggle:hover { color: #ccc; border-color: var(--accent); }
+    #themeToggle:focus-visible,
+    .theme-settings input:focus-visible + label {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+    .theme-settings {
+      position: absolute;
+      right: 24px;
+      top: 64px;
+      z-index: 2;
+      width: min(320px, calc(100vw - 32px));
+      padding: 14px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      background: var(--menu-bg);
+      color: var(--menu-text);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    .theme-settings[hidden] { display: none; }
+    .theme-settings fieldset { border: 0; margin: 0 0 12px; padding: 0; }
+    .theme-settings legend { font-weight: 700; margin-bottom: 6px; }
+    .theme-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .theme-options--accents { grid-template-columns: repeat(2, 1fr); }
+    .theme-settings input { position: absolute; opacity: 0; }
+    .theme-settings label {
+      display: block;
+      border: 1px solid var(--menu-border);
+      border-radius: 5px;
+      cursor: pointer;
+      padding: 7px 8px;
+      text-align: center;
+    }
+    .theme-settings input:checked + label {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent-strong);
+      font-weight: 700;
+    }
 
     /* ── Controls ── */
     .controls {
@@ -1243,7 +1281,17 @@
       --grid:       #1e2130;
       --axis:       #2a2d3a;
       --chart-text: #8a9bb0;
+      --accent: #4a9eff;
+      --accent-strong: #8cc4ff;
+      --accent-soft: #213a5e;
+      --focus-ring: #8cc4ff;
+      --menu-bg: #1a1d27;
+      --menu-text: #e0e0e0;
+      --menu-border: #4a5060;
     }
+    [data-accent="dark-green"] { --accent: #2eaf65; --accent-strong: #77d79b; --accent-soft: #163d27; --focus-ring: #9be6b6; }
+    [data-accent="bright-green"] { --accent: #4caf50; --accent-strong: #a5e7a8; --accent-soft: #1d4720; --focus-ring: #b8f0ba; }
+    [data-accent="purple"] { --accent: #9b59d0; --accent-strong: #d7a9f3; --accent-soft: #40235a; --focus-ring: #e5c2fa; }
 
     /* ── Light theme overrides ── */
     [data-theme="light"] {
@@ -1251,6 +1299,9 @@
       --grid:       #e0e2e8;
       --axis:       #c8ccd8;
       --chart-text: #5a6478;
+      --menu-bg: #ffffff;
+      --menu-text: #2c3040;
+      --menu-border: #c0c4cc;
     }
     [data-theme="light"],
     [data-theme="light"] body {
@@ -1260,22 +1311,22 @@
     [data-theme="light"] .page { background: #f5f6f8; }
      [data-theme="light"] header {
        background: #ffffff;
-       border-bottom-color: #2563eb;
+      border-bottom-color: var(--accent);
      }
     [data-theme="light"] header h1 { color: #1a1d27; }
     [data-theme="light"] #headerVersion {
       background: #e8f1ff;
-      border-color: #2563eb;
+      border-color: var(--accent);
       color: #174ea6;
     }
     [data-theme="light"] #headerVersion:hover,
     [data-theme="light"] #headerVersion:focus-visible {
       background: #dbeafe;
       color: #123b82;
-      outline-color: #2563eb;
+      outline-color: var(--focus-ring);
     }
     [data-theme="light"] #themeToggle { color: #4a5060; border-color: #c0c4cc; }
-    [data-theme="light"] #themeToggle:hover { color: #1a1d27; border-color: #2563eb; }
+    [data-theme="light"] #themeToggle:hover { color: #1a1d27; border-color: var(--accent); }
     [data-theme="light"] .controls { border-bottom-color: #e0e2e8; }
     [data-theme="light"] .recovery-controls { border-bottom-color: #e0e2e8; }
     [data-theme="light"] .recovery-controls .ctrl-btn { color: #5a6478; border-color: #d0d4dc; }
@@ -1424,7 +1475,26 @@
 <header>
   <h1>Hit Factor Charts</h1>
   <a id="headerVersion" href="https://github.com/johnwaldo/hitfactorcharts/releases" target="_blank" rel="noopener noreferrer"></a>
-  <button id="themeToggle" title="Toggle light/dark mode">&#9788;</button>
+  <button id="themeToggle" type="button" aria-expanded="false" aria-controls="themeSettings" title="Theme settings">Theme</button>
+  <div id="themeSettings" class="theme-settings" hidden>
+    <fieldset>
+      <legend>Brightness</legend>
+      <div class="theme-options">
+        <input id="themeSystem" name="themeMode" type="radio" value="system" checked><label for="themeSystem">System</label>
+        <input id="themeLight" name="themeMode" type="radio" value="light"><label for="themeLight">Light</label>
+        <input id="themeDark" name="themeMode" type="radio" value="dark"><label for="themeDark">Dark</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Accent</legend>
+      <div class="theme-options theme-options--accents">
+        <input id="accentBlue" name="accent" type="radio" value="blue" checked><label for="accentBlue">Blue</label>
+        <input id="accentDarkGreen" name="accent" type="radio" value="dark-green"><label for="accentDarkGreen">Dark green</label>
+        <input id="accentBrightGreen" name="accent" type="radio" value="bright-green"><label for="accentBrightGreen">Bright green</label>
+        <input id="accentPurple" name="accent" type="radio" value="purple"><label for="accentPurple">Purple</label>
+      </div>
+    </fieldset>
+  </div>
 </header>
 
 <div class="controls">

@@ -183,32 +183,32 @@ function showUpdateBanner(latestVersion, zipUrl, releasePageUrl, releaseNotes) {
 
 checkForUpdate();
 
-// ── Theme toggle ──────────────────────────────────────────────────────────────
-function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  const btn = document.getElementById('themeToggle');
-  if (btn) btn.textContent = theme === 'light' ? '\u263E' : '\u2606'; // moon / sun
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)'), themeToggle = document.getElementById('themeToggle'), themeSettings = document.getElementById('themeSettings');
+const validThemeModes = new Set(['system', 'light', 'dark']),
+  validAccents = new Set(['blue', 'dark-green', 'bright-green', 'purple']);
+const selectedThemeMode = () => document.querySelector('input[name="themeMode"]:checked').value,
+  selectedAccent = () => document.querySelector('input[name="accent"]:checked').value;
+function applyThemeSettings(mode, accent) {
+  document.documentElement.setAttribute('data-theme', mode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : mode); document.documentElement.setAttribute('data-accent', accent);
+  document.querySelector(`input[name="themeMode"][value="${mode}"]`).checked = true; document.querySelector(`input[name="accent"][value="${accent}"]`).checked = true; renderAll();
 }
-
-// Restore saved theme (check sync first, then restored local backup)
-Promise.all([
-  chrome.storage.sync.get(['theme']),
-  chrome.storage.local.get(['theme']),
-]).then(([syncData, localData]) => {
-  const theme = syncData.theme || localData.theme || 'light';
-  applyTheme(theme);
-  chrome.storage.local.set({ theme });
-  if (!syncData.theme && localData.theme) chrome.storage.sync.set({ theme });
+function persistThemeSettings(mode, accent) {
+  const values = { theme: mode, themeMode: mode, accent }; chrome.storage.local.set(values); chrome.storage.sync.set(values);
+} Promise.all([chrome.storage.sync.get(['themeMode', 'theme', 'accent']), chrome.storage.local.get(['themeMode', 'theme', 'accent'])]).then(([syncData, localData]) => {
+  const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme].find(value => validThemeModes.has(value)) || 'system', accent = [syncData.accent, localData.accent].find(value => validAccents.has(value)) || 'blue';
+  applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
 });
-
-document.getElementById('themeToggle').addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme') || 'light';
-  const next = current === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
-  chrome.storage.local.set({ theme: next });
-  chrome.storage.sync.set({ theme: next });
-  // Redraw charts with new theme colors
-  renderAll();
+themeToggle.addEventListener('click', () => {
+  const open = themeSettings.hidden;
+  themeSettings.hidden = !open; themeToggle.setAttribute('aria-expanded', String(open));
+  if (open) themeSettings.querySelector('input:checked').focus();
+});
+document.querySelectorAll('input[name="themeMode"], input[name="accent"]').forEach(input => input.addEventListener('change', () => {
+  const mode = selectedThemeMode(), accent = selectedAccent();
+  applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
+}));
+systemTheme.addEventListener('change', () => {
+  if (selectedThemeMode() === 'system') applyThemeSettings('system', selectedAccent());
 });
 
 // ── Credential sync backup ────────────────────────────────────────────────────

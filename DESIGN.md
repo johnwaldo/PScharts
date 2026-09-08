@@ -32,6 +32,14 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
   unavailable data, or metric basis through colour or an icon alone.
 - Verify layout changes in both themes at approximately 375px, 1920px, and
   2560px viewport widths.
+- Theme settings separate brightness from accent. Brightness offers System,
+  Light, and Dark; System follows the operating-system preference. Accent
+  presets are Blue (compatibility default), Dark green, Bright green, and
+  Purple. Persist both compact preferences in sync storage with a local backup.
+- Use shared CSS custom properties for accent, stronger accent, focus ring, and
+  accent surface. Selected settings require text and native radio state, never
+  color alone. Every preset must preserve contrast for text, controls, badges,
+  charts, and focus rings in either brightness mode.
 
 ## Chart language and axes
 
