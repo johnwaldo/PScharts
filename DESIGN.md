@@ -59,7 +59,7 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
   paired with that match score, requires at least three varying pairs,
   displays `n`, and is described only as an association. Prefer official
   `clf_pct`; label any match-relative fallback and never infer a class from it.
-- Accuracy count tiles compare the last three matches with the prior baseline.
+- Accuracy share tiles compare the last three matches with the prior baseline.
   Higher A is positive; lower B/C/D/M/NS is positive. Hit-zone tiles pair
   average shares with least-squares percentage-point trends using the same
   semantic directions.
@@ -78,7 +78,9 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - **Time % (experimental)** is an opt-in, high-contrast teal dashed supplemental series on the same linear 0–100 scale. It uses only fastest valid combined-field raw stage time divided by shooter raw time, excludes classifiers, overrides, invalid or incomplete times, and unavailable benchmarks, and shows unavailable rather than a fabricated point. It never replaces Score Over Time or Adjusted %.
 - Hit Zone Breakdown stores and exports raw reported counts only. Source-column availability is part of each refreshed stage record; legacy records without it are unknown, and combined M+NS data must never be split into invented M and NS values.
 - The hit-zone denominator is the reported A/B/C/D/M/NS or combined M+NS total. Procedural penalties remain outside it and are disclosed in chart help and tooltips.
-- Hit-zone geometry transforms cumulative boundaries, never individual stored values: raw 0–50% maps linearly to 0–30% visual height, and raw 50–100% maps linearly to 30–100%. Raw ticks render at transformed positions, ordering is stable, and the cumulative endpoint remains 100%.
+- Accuracy Trend uses that same valid reported hit-zone total as each match's percentage denominator; missing or zero-denominator matches are unavailable, never zero accuracy.
+- Apply all chart filters before sorting Hit Zone Breakdown records and retaining the six most recent eligible matches in chronological display order.
+- Hit-zone geometry transforms cumulative boundaries, never individual stored values: raw 0–75% maps linearly to 0–45% visual height, and raw 75–100% maps linearly to 45–100%. Raw ticks render at transformed positions, ordering is stable, and the cumulative endpoint remains 100%. Keep this as a stacked bar chart: pie charts, 3D transforms, perspective, and area-based encodings would distort comparison.
 - Use distinct theme-safe colours and stable order for A, conditional positive B, C, D, separate M, separate NS, and combined M+NS. Tooltips and exports retain exact raw counts and percentages.
 
 ## Analytics date range
