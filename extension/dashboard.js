@@ -183,64 +183,36 @@ function showUpdateBanner(latestVersion, zipUrl, releasePageUrl, releaseNotes) {
 
 checkForUpdate();
 
-// ── Theme settings ────────────────────────────────────────────────────────────
 const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
-const themeToggle = document.getElementById('themeToggle');
-const themeSettings = document.getElementById('themeSettings');
-const validThemeModes = new Set(['system', 'light', 'dark']);
-const validAccents = new Set(['blue', 'dark-green', 'bright-green', 'purple']);
-
-function resolvedTheme(mode) {
-  return mode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : mode;
-}
-
+const themeToggle = document.getElementById('themeToggle'), themeSettings = document.getElementById('themeSettings');
+const validThemeModes = new Set(['system', 'light', 'dark']),
+  validAccents = new Set(['blue', 'dark-green', 'bright-green', 'purple']);
+const selectedThemeMode = () => document.querySelector('input[name="themeMode"]:checked').value,
+  selectedAccent = () => document.querySelector('input[name="accent"]:checked').value;
 function applyThemeSettings(mode, accent) {
-  document.documentElement.setAttribute('data-theme', resolvedTheme(mode));
-  document.documentElement.setAttribute('data-accent', accent);
+  document.documentElement.setAttribute('data-theme', mode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : mode); document.documentElement.setAttribute('data-accent', accent);
   document.querySelector(`input[name="themeMode"][value="${mode}"]`).checked = true;
-  document.querySelector(`input[name="accent"][value="${accent}"]`).checked = true;
-  renderAll();
+  document.querySelector(`input[name="accent"][value="${accent}"]`).checked = true; renderAll();
 }
-
 function persistThemeSettings(mode, accent) {
-  const values = { theme: mode, themeMode: mode, accent };
-  chrome.storage.local.set(values);
-  chrome.storage.sync.set(values);
+  const values = { theme: mode, themeMode: mode, accent }; chrome.storage.local.set(values); chrome.storage.sync.set(values);
 }
-
-Promise.all([
-  chrome.storage.sync.get(['themeMode', 'theme', 'accent']),
-  chrome.storage.local.get(['themeMode', 'theme', 'accent']),
-]).then(([syncData, localData]) => {
-  // Legacy light/dark `theme` values are the selected brightness mode.
-  const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme]
-    .find(value => validThemeModes.has(value)) || 'system';
+Promise.all([chrome.storage.sync.get(['themeMode', 'theme', 'accent']), chrome.storage.local.get(['themeMode', 'theme', 'accent'])]).then(([syncData, localData]) => {
+  const mode = [syncData.themeMode, syncData.theme, localData.themeMode, localData.theme].find(value => validThemeModes.has(value)) || 'system';
   const accent = [syncData.accent, localData.accent].find(value => validAccents.has(value)) || 'blue';
-  applyThemeSettings(mode, accent);
-  persistThemeSettings(mode, accent);
+  applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
 });
-
 themeToggle.addEventListener('click', () => {
   const open = themeSettings.hidden;
-  themeSettings.hidden = !open;
-  themeToggle.setAttribute('aria-expanded', String(open));
+  themeSettings.hidden = !open; themeToggle.setAttribute('aria-expanded', String(open));
   if (open) themeSettings.querySelector('input:checked').focus();
 });
-
-document.querySelectorAll('input[name="themeMode"], input[name="accent"]').forEach(input => {
-  input.addEventListener('change', () => {
-    const mode = document.querySelector('input[name="themeMode"]:checked').value;
-    const accent = document.querySelector('input[name="accent"]:checked').value;
-    applyThemeSettings(mode, accent);
-    persistThemeSettings(mode, accent);
-  });
-});
-
+document.querySelectorAll('input[name="themeMode"], input[name="accent"]').forEach(input => input.addEventListener('change', () => {
+  const mode = selectedThemeMode(), accent = selectedAccent();
+  applyThemeSettings(mode, accent); persistThemeSettings(mode, accent);
+}));
 systemTheme.addEventListener('change', () => {
-  const mode = document.querySelector('input[name="themeMode"]:checked').value;
-  if (mode === 'system') {
-    applyThemeSettings(mode, document.querySelector('input[name="accent"]:checked').value);
-  }
+  if (selectedThemeMode() === 'system') applyThemeSettings('system', selectedAccent());
 });
 
 // ── Credential sync backup ────────────────────────────────────────────────────
