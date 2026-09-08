@@ -17,6 +17,25 @@ function _finiteValues(values) {
   return values.filter(Number.isFinite);
 }
 
+// These bands are a familiar performance shorthand.  They are only official
+// USPSA classes when the source is an official classifier percentage.
+function performanceClass(percent) {
+  if (!Number.isFinite(percent)) return null;
+  if (percent >= 95) return { code: 'GM', label: 'GM', color: '#ffd700' };
+  if (percent >= 85) return { code: 'M', label: 'M', color: '#e040fb' };
+  if (percent >= 75) return { code: 'A', label: 'A', color: '#4caf50' };
+  if (percent >= 60) return { code: 'B', label: 'B', color: '#4a9eff' };
+  if (percent >= 40) return { code: 'C', label: 'C', color: '#ff9800' };
+  return { code: 'D', label: 'D', color: '#8a9bb0' };
+}
+
+function _classBadge(percent, kind = 'equivalent') {
+  const band = performanceClass(percent);
+  if (!band) return '';
+  const wording = kind === 'classifier' ? `${band.label} classifier class` : `${band.label} equivalent`;
+  return `<span class="performance-badge performance-badge--${band.code.toLowerCase()}">${escHtml(wording)}</span>`;
+}
+
 function _recentComparison(values, recentSize = 3) {
   const finite = _finiteValues(values);
   if (finite.length <= recentSize) return null;
@@ -71,12 +90,12 @@ function _contextStatus(label, icon = '•') {
   return { tone: 'context', icon, label };
 }
 
-function _insightTile({ label, value, comparison, meta, status }) {
+function _insightTile({ label, value, comparison, meta, status, badge = '' }) {
   const safeStatus = status || _contextStatus('Context');
   return `
     <article class="insight-tile insight-tile--${safeStatus.tone}" role="listitem">
       <div class="insight-tile__label">${escHtml(label)}</div>
-      <div class="insight-tile__value">${escHtml(value)}</div>
+      <div class="insight-tile__value">${escHtml(value)}${badge}</div>
       <div class="insight-tile__status">
         <span class="insight-tile__icon" aria-hidden="true">${escHtml(safeStatus.icon)}</span>
         <span>${escHtml(safeStatus.label)}</span>
@@ -112,18 +131,19 @@ function clearChartSummaries() {
   }
 }
 
-function _comparisonTile(label, comparison, unit, threshold = 1.0, lowerIsBetter = false) {
+function _comparisonTile(label, comparison, unit, threshold = 1.0, lowerIsBetter = false, badge = '') {
   if (!comparison) return _unavailableTile(label, 'At least 4 results are required.');
   const status = _trendStatus(comparison.delta, threshold, lowerIsBetter);
   const thresholdNote = status.label === 'Stable'
-    ? ` · stable within ±${threshold.toFixed(1)} ${unit === '%' ? 'pp' : 'hits'}`
+    ? ` · stable within ±${threshold.toFixed(1)} ${unit === '%' ? '%' : 'hits'}`
     : '';
   return _insightTile({
     label,
     value: `${comparison.recentAvg.toFixed(1)}${unit}`,
-    comparison: `${_signed(comparison.delta)}${unit === '%' ? ' pp' : ''} vs prior ${comparison.priorAvg.toFixed(1)}${unit}`,
+    comparison: `${_signed(comparison.delta)}${unit === '%' ? '%' : ''} vs prior ${comparison.priorAvg.toFixed(1)}${unit}`,
     meta: `Recent ${comparison.recentCount} vs prior ${comparison.priorCount}${thresholdNote}`,
     status,
+    badge,
   });
 }
 
@@ -131,10 +151,10 @@ function _overallTrendTile(label, values, threshold = 1.0, lowerIsBetter = false
   const trend = _overallTrend(values);
   if (!trend) return _unavailableTile(label, 'At least 3 comparable results are required.');
   const status = _trendStatus(trend.delta, threshold, lowerIsBetter);
-  const thresholdNote = status.label === 'Stable' ? ` · stable within ±${threshold.toFixed(1)} pp` : '';
+  const thresholdNote = status.label === 'Stable' ? ` · stable within ±${threshold.toFixed(1)}%` : '';
   return _insightTile({
     label,
-    value: `${_signed(trend.delta)} pp`,
+    value: `${_signed(trend.delta)}%`,
     comparison: 'Predicted first-to-last change',
     meta: `Least-squares trend · n=${trend.count}${thresholdNote}`,
     status,
@@ -208,8 +228,9 @@ function _scoreTiles(sorted) {
     tiles.push(_insightTile({
       label: 'Adjusted average',
       value: `${adjustedAverage.toFixed(1)}%`,
-      comparison: `${_signed(difference)} pp vs paired raw ${rawAverage.toFixed(1)}%`,
-      meta: `${context} · n=${adjustedPairs.length}`,
+      badge: _classBadge(adjustedAverage),
+      comparison: `${_signed(difference)}% vs paired raw ${rawAverage.toFixed(1)}%`,
+      meta: `${context} · unofficial match-performance equivalent · n=${adjustedPairs.length}`,
       status: _contextStatus('Field context', '◆'),
     }));
   } else {
@@ -227,11 +248,11 @@ function _placementTiles(sorted) {
     .map(record => (1 - record.div_place / record.div_total) * 100);
   const average = _avg(fieldBeaten);
   const averageTile = average == null
-    ? _unavailableTile('Average field beaten', 'Placement data is unavailable.')
+    ? _unavailableTile('Overall Rank Average', 'Placement data is unavailable.')
     : _insightTile({
-      label: 'Average field beaten',
+      label: 'Overall Rank Average',
       value: `${average.toFixed(1)}%`,
-      comparison: 'Share of division finished behind you',
+      comparison: 'Average percentage of the relevant field beaten',
       meta: `Current filtered view · n=${fieldBeaten.length}`,
       status: _contextStatus('Overall view', '◎'),
     });
@@ -299,24 +320,33 @@ function _classifierTiles(sorted) {
 
   return [
     recent
-      ? _comparisonTile('Recent classifiers', recent, '%', 1.5)
+      ? _comparisonTile(
+        'Recent classifiers',
+        recent,
+        '%',
+        1.5,
+        false,
+        data.basis.startsWith('Official') ? _classBadge(recent.recentAvg, 'classifier') : '',
+      )
       : _unavailableTile('Recent classifiers', 'At least 6 classifier stages are required.'),
     data.scores.length
       ? _insightTile({
         label: 'Best classifier',
         value: `${Math.max(...data.scores).toFixed(1)}%`,
+        badge: data.basis.startsWith('Official') ? _classBadge(Math.max(...data.scores), 'classifier') : '',
         comparison: data.basis,
         meta: `Best of ${data.scores.length} stages`,
         status: _contextStatus('Best result', '★'),
       })
       : _unavailableTile('Best classifier', 'Classifier scores are unavailable.'),
     averageMatchScore == null
-      ? _unavailableTile('Classifier-match score', 'No paired match scores are available.')
+      ? _unavailableTile('Classifier vs Match Performance', 'No paired match scores are available.')
       : _insightTile({
-        label: 'Classifier-match score',
+        label: 'Average match finish',
         value: `${averageMatchScore.toFixed(1)}%`,
-        comparison: 'Average match score when a classifier was present',
-        meta: `Current filtered view · n=${data.matchScores.length}`,
+        badge: _classBadge(averageMatchScore),
+        comparison: 'If match finish counted as classification, this would be your average.',
+        meta: `Unofficial match-performance equivalent · n=${data.matchScores.length}`,
         status: _contextStatus('Match context', '◎'),
       }),
     correlation

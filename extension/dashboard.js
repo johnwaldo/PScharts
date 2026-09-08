@@ -1351,10 +1351,12 @@ function renderAll() {
   const best = overallPcts.length ? Math.max(...overallPcts) : 0;
 
   document.getElementById('statMatches').textContent = viewSorted.length;
-  document.getElementById('statAvg').textContent     = avg.toFixed(1) + '%';
+  document.getElementById('statAvg').innerHTML       = `${avg.toFixed(1)}%${_classBadge(avg)}`;
   document.getElementById('statAvg').style.color     = '#4a9eff';
-  document.getElementById('statBest').textContent    = best.toFixed(1) + '%';
+  document.getElementById('statBest').innerHTML      = `${best.toFixed(1)}%${_classBadge(best)}`;
   document.getElementById('statBest').style.color    = '#4a9eff';
+  document.getElementById('statAvgLbl').textContent  = 'Average match finish';
+  document.getElementById('statBestLbl').textContent = 'Best match finish';
 
   // Stat box tooltips — explain what each metric measures
   const divLabel = selectedDiv ? ` in ${divisionLabel(selectedDiv)}` : '';
@@ -1365,11 +1367,13 @@ function renderAll() {
   document.getElementById('statAvgBox').dataset.tip =
     `Your average match score${divLabel}.\n` +
     `Calculated as your points ÷ the match winner's points × 100,\n` +
-    `averaged across all checked matches in the current view.` + filteredStageTip;
+      `averaged across all checked matches in the current view.\n` +
+      `The ${performanceClass(avg)?.label || '—'} equivalent badge is unofficial.` + filteredStageTip;
   document.getElementById('statBestBox').dataset.tip =
     `Your highest single-match score${divLabel}.\n` +
     `Match score = your points ÷ match winner's points × 100.\n` +
-    `This is match-relative performance, not an official classification percentage.` + filteredStageTip;
+      `This is match-relative performance, not an official classification percentage.\n` +
+      `The ${performanceClass(best)?.label || '—'} equivalent badge is unofficial.` + filteredStageTip;
 
   // ── Consistency stat card ─────────────────────────────────────────────────
   // Standard deviation of match %. Low stddev = consistent performer.
@@ -1409,17 +1413,18 @@ function renderAll() {
   }
   if (adjMatchPcts.length >= 1) {
     const adjAvg = adjMatchPcts.reduce((s, v) => s + v, 0) / adjMatchPcts.length;
-    adjAvgVal.textContent = adjAvg.toFixed(1) + '%';
+    adjAvgVal.innerHTML = `${adjAvg.toFixed(1)}%${_classBadge(adjAvg)}`;
     adjAvgVal.style.color = '#ff4081';
     const adjAvgLbl = adjAvgBox.querySelector('.lbl');
-    if (adjAvgLbl) adjAvgLbl.textContent = 'Adj Avg %';
+    if (adjAvgLbl) adjAvgLbl.textContent = 'Adjusted average';
     adjAvgBox.dataset.tip =
       `Field-strength adjusted average (${adjMatchPcts.length} match${adjMatchPcts.length > 1 ? 'es' : ''}).\n` +
       `Uses non-classifier stages and the best HF from any division at each match,\n` +
       `normalized to your division using HHF ratios from hitfactor.info.\n` +
       `Classifier stages are skipped because USPSA % is already nationally normalized.\n` +
       `This gives a more accurate read when the division field varies in strength.\n` +
-      `Raw avg: ${avg.toFixed(1)}% → Adjusted: ${adjAvg.toFixed(1)}%. Neither is an official classification percentage.`;
+      `Raw avg: ${avg.toFixed(1)}% → Adjusted: ${adjAvg.toFixed(1)}%. Neither is an official classification percentage.\n` +
+      `${performanceClass(adjAvg)?.label || '—'} equivalent is an unofficial comparison.`;
     adjAvgBox.style.display = '';
   } else {
     adjAvgBox.style.display = 'none';
@@ -1503,9 +1508,9 @@ function renderAll() {
     const bestBandC = hasOfficialStats ? CLASS_BANDS.find(b => clfBest >= b.min && clfBest < b.max) : null;
 
     document.getElementById('statMatches').textContent = clfPoints.length;
-    document.getElementById('statAvg').textContent  = clfAvg.toFixed(1) + '%';
+    document.getElementById('statAvg').innerHTML     = `${clfAvg.toFixed(1)}%${hasOfficialStats ? _classBadge(clfAvg, 'classifier') : ''}`;
     document.getElementById('statAvg').style.color  = avgBandC?.text.replace('0.55','1') || '#4a9eff';
-    document.getElementById('statBest').textContent = clfBest.toFixed(1) + '%';
+    document.getElementById('statBest').innerHTML    = `${clfBest.toFixed(1)}%${hasOfficialStats ? _classBadge(clfBest, 'classifier') : ''}`;
     document.getElementById('statBest').style.color = bestBandC?.text.replace('0.55','1') || '#4a9eff';
     if (avgLbl) avgLbl.textContent = avgBandC ? `Avg % · ${avgBandC.label} Class` : 'Avg %';
 
