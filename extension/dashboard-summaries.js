@@ -378,7 +378,7 @@ function _outcomeTiles(points, mode) {
     const values = points.map(point => point[property]).filter(Number.isFinite);
     if (!values.length || (key === 'b' && !values.some(value => value > 0))) continue;
 
-    if (mode === 'share') {
+    if (mode === 'share' || mode === 'percentage') {
       const average = _avg(values);
       const trend = _overallTrend(values);
       const status = trend ? _trendStatus(trend.delta, 1.0, lowerIsBetter) : null;
@@ -387,7 +387,7 @@ function _outcomeTiles(points, mode) {
         label,
         value: `${average.toFixed(1)}%`,
         comparison: trend ? `${_signed(trend.delta)} pp predicted change` : 'Trend needs at least 3 matches',
-        meta: `Average share · n=${values.length}${thresholdNote}`,
+        meta: `Average reported hit-zone share · n=${values.length}${thresholdNote}`,
         status: status || _contextStatus('Not enough trend data', '…'),
       }));
       continue;
@@ -417,6 +417,6 @@ function generateSummaries(viewSorted, analysis = {}) {
   _renderSummary('chartPlaceSummary', _placementTiles(sorted));
   _renderSummary('chartNonClfSummary', _nonClassifierTiles(analysis.nonClfPoints || []));
   _renderSummary('chartClfSummary', _classifierTiles(sorted));
-  _renderSummary('chartAccuracySummary', _outcomeTiles(analysis.accuracyPoints || [], 'count'));
+  _renderSummary('chartAccuracySummary', _outcomeTiles(analysis.accuracyPoints || [], 'percentage'));
   _renderSummary('chartHitZoneSummary', _outcomeTiles(analysis.hitZoneBars || [], 'share'));
 }

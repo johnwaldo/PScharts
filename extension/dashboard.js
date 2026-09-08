@@ -1,6 +1,5 @@
 // dashboard.js
 
-// ── Global state (declared first to avoid TDZ in event handlers below) ────────
 let allResults = [];
 
 // ── Size canvases to their visible CSS-pixel dimensions ───────────────────────
@@ -37,13 +36,11 @@ function scheduleDashboardResize() {
 window.addEventListener('resize', scheduleDashboardResize);
 document.addEventListener('DOMContentLoaded', sizeCanvases);
 
-// ── Version display ───────────────────────────────────────────────────────────
 const headerVersion = document.getElementById('headerVersion');
 const installedVersion = chrome.runtime.getManifest().version;
 headerVersion.textContent = 'Installed v' + installedVersion;
 headerVersion.setAttribute('aria-label', 'Installed extension version ' + installedVersion + '. View GitHub Releases.');
 
-// ── DOM refs ──────────────────────────────────────────────────────────────────
 const memberInput  = document.getElementById('memberInput');
 const nameInput    = document.getElementById('nameInput');
 const divisionFilter = document.getElementById('divisionFilter');
@@ -1823,8 +1820,8 @@ function renderAll() {
   }
 
   // ── Accuracy trend ────────────────────────────────────────────────────────
-  // Plots reported C, D, M, and NS counts per match. Combined M+NS values are
-  // deliberately not split into separate series.
+  // Plots reported C, D, M, and NS shares of valid scored hits per match.
+  // Combined M+NS values are deliberately not split into separate series.
   const accuracySection = document.getElementById('chartAccuracySection');
   const accuracyPoints  = [];
   for (const r of viewSorted) {
@@ -1854,18 +1851,21 @@ function renderAll() {
       }
       stagesWithHits++;
     }
-    if (!stagesWithHits) continue;
+    const hitKeys = ['a', 'b', 'c', 'd', 'm', 'ns', 'm_ns'];
+    const total = hitKeys.reduce((sum, key) => sum + (available[key] ? totals[key] : 0), 0);
+    if (!stagesWithHits || !total) continue;
     accuracyPoints.push({
       date: r.date,
       label: r.match_name,
       division: r.division,
-      a: available.a ? totals.a : null,
-      b: available.b ? totals.b : null,
-      c: available.c ? totals.c : null,
-      d: available.d ? totals.d : null,
-      m: hasCombinedMNs ? null : (available.m ? totals.m : null),
-      ns: hasCombinedMNs ? null : (available.ns ? totals.ns : null),
-      m_ns: available.m_ns ? totals.m_ns : null,
+      a: available.a ? (totals.a / total) * 100 : null,
+      b: available.b ? (totals.b / total) * 100 : null,
+      c: available.c ? (totals.c / total) * 100 : null,
+      d: available.d ? (totals.d / total) * 100 : null,
+      m: hasCombinedMNs ? null : (available.m ? (totals.m / total) * 100 : null),
+      ns: hasCombinedMNs ? null : (available.ns ? (totals.ns / total) * 100 : null),
+      m_ns: available.m_ns ? (totals.m_ns / total) * 100 : null,
+      total,
       hasCombinedMNs,
     });
   }
@@ -1883,7 +1883,7 @@ function renderAll() {
     const accDates  = accuracyPoints.map(p => p.date);
     if (accSeries.length) {
       drawMultiSeriesChart(document.getElementById('chartAccuracy'), accSeries, accDates, {
-        yLabel: 'Reported hits (nonlinear)', yMin: 0, yMax: null, invertY: false, trend: true, valueUnit: 'hits', yScale: 'sqrt',
+        yLabel: 'Reported hit share', yMin: 0, yMax: 100, invertY: false, trend: true, valueUnit: '%',
         showClassBands: false,
       });
     } else {
@@ -1940,18 +1940,18 @@ function renderAll() {
     });
   }
   hitZoneBars.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const recentHitZoneBars = hitZoneBars.slice(-6);
 
-  if (hitZoneBars.length >= 2) {
+  if (recentHitZoneBars.length >= 2) {
     hitZoneSection.style.display = '';
-    drawStackedBarChart(document.getElementById('chartHitZone'), hitZoneBars);
+    drawStackedBarChart(document.getElementById('chartHitZone'), recentHitZoneBars);
   } else {
     hitZoneSection.style.display = 'none';
   }
 
-  generateSummaries(viewSorted, { nonClfPoints, accuracyPoints, hitZoneBars });
+  generateSummaries(viewSorted, { nonClfPoints, accuracyPoints, hitZoneBars: recentHitZoneBars });
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function setStatus(msg, type = '', loading = false) {
   statusEl.className = type;
   statusEl.innerHTML = loading ? `<div class="spinner"></div>${msg}` : msg;
