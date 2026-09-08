@@ -38,7 +38,10 @@ window.addEventListener('resize', scheduleDashboardResize);
 document.addEventListener('DOMContentLoaded', sizeCanvases);
 
 // ── Version display ───────────────────────────────────────────────────────────
-document.getElementById('headerVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+const headerVersion = document.getElementById('headerVersion');
+const installedVersion = chrome.runtime.getManifest().version;
+headerVersion.textContent = 'Installed v' + installedVersion;
+headerVersion.setAttribute('aria-label', 'Installed extension version ' + installedVersion + '. View GitHub Releases.');
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const memberInput  = document.getElementById('memberInput');
