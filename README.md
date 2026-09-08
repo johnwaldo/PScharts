@@ -8,7 +8,7 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 
 ![Hit Factor Charts — Analytics](/screenshots/bottom.png?raw=true "Hit Factor Charts — Full Analytics Suite")
 
-*Screenshots taken at v1.5.5. Current version is v1.7.1.*
+*Screenshots taken at v1.5.5. See [GitHub Releases](https://github.com/johnwaldo/hitfactorcharts/releases) for current versions and publication dates.*
 
 ---
 

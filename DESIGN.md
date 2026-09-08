@@ -4,6 +4,8 @@
 
 Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter typography, blue accent, light/dark themes, compact controls, and chart-first hierarchy unless a feature explicitly changes them.
 
+- The dashboard header displays the installed extension version from the runtime manifest so it remains accurate offline. GitHub Releases is the source of truth for publication dates; do not duplicate or maintain release dates in the extension or README.
+
 ## Responsive layout
 
 - The dashboard is fluid and uses 100% of the browser width. Do not restore a fixed page-level maximum width.
