@@ -22,6 +22,7 @@ vm.runInContext(`${source};
   globalThis.placementTilesForTest = _placementTiles;
   globalThis.nonClassifierTilesForTest = _nonClassifierTiles;
   globalThis.classifierTilesForTest = _classifierTiles;
+  globalThis.outcomeTilesForTest = _outcomeTiles;
 `, context);
 
 test('performance classes include every boundary and decimal value', () => {
@@ -123,4 +124,22 @@ test('missing placement and non-classifier values remain unavailable rather than
   assert.doesNotMatch(nonClassifier, />0\.0%</);
   assert.match(placement, /Not enough data/);
   assert.match(nonClassifier, /Not enough data/);
+});
+
+test('outcome summaries show color-coded improving or declining percentage changes', () => {
+  context.leastSquaresRegression = samples => ({
+    start: { y: samples[0].y },
+    end: { y: samples.at(-1).y },
+  });
+
+  const improving = context.outcomeTilesForTest([{ c: 4 }, { c: 2 }, { c: 1 }], 'percentage').join('');
+  assert.match(improving, /insight-tile--positive/);
+  assert.match(improving, /Improving/);
+  assert.match(improving, /-3\.0% predicted change/);
+  assert.doesNotMatch(improving, /pp/);
+
+  const declining = context.outcomeTilesForTest([{ d: 1 }, { d: 2 }, { d: 4 }], 'percentage').join('');
+  assert.match(declining, /insight-tile--negative/);
+  assert.match(declining, /Declining/);
+  assert.match(declining, /\+3\.0% predicted change/);
 });
