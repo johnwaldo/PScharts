@@ -32,8 +32,14 @@ function performanceClass(percent) {
 function _classBadge(percent, kind = 'equivalent') {
   const band = performanceClass(percent);
   if (!band) return '';
-  const wording = kind === 'classifier' ? `${band.label} classifier class` : `${band.label} equivalent`;
-  return `<span class="performance-badge performance-badge--${band.code.toLowerCase()}">${escHtml(wording)}</span>`;
+  const official = kind === 'classifier';
+  const accessibleLabel = official
+    ? `${band.label} Class, official classifier percentage`
+    : `Approximately ${band.label} Class, unofficial match-performance equivalent`;
+  const approximation = official
+    ? ''
+    : '<span class="performance-badge__approx" aria-hidden="true">≈</span>';
+  return `<span class="performance-badge performance-badge--${band.code.toLowerCase()}" aria-label="${escHtml(accessibleLabel)}">${approximation}<span class="performance-badge__code" aria-hidden="true">${escHtml(band.code)}</span><span class="performance-badge__class" aria-hidden="true">Class</span></span>`;
 }
 
 function _recentComparison(values, recentSize = 3) {
@@ -161,6 +167,21 @@ function _overallTrendTile(label, values, threshold = 1.0, lowerIsBetter = false
   });
 }
 
+function _extremeTile(label, values, direction, comparison, badgeKind = '') {
+  const finite = _finiteValues(values);
+  if (!finite.length) return _unavailableTile(label, 'Comparable results are unavailable.');
+  const best = direction === 'best';
+  const value = best ? Math.max(...finite) : Math.min(...finite);
+  return _insightTile({
+    label,
+    value: `${value.toFixed(1)}%`,
+    badge: badgeKind ? _classBadge(value, badgeKind) : '',
+    comparison,
+    meta: `${best ? 'Highest' : 'Lowest'} of ${finite.length} results in the filtered view`,
+    status: _contextStatus(best ? 'Best result' : 'Lowest result', best ? '★' : '◇'),
+  });
+}
+
 function _adjustedPairs(sorted) {
   const pairs = [];
   for (const record of sorted) {
@@ -210,7 +231,14 @@ function _scoreTiles(sorted) {
   const adjustedValues = adjustedPairs.map(pair => pair.adjusted);
   const recentRaw = _recentComparison(rawValues);
   const tiles = [
-    _comparisonTile('Recent match score', recentRaw, '%'),
+    _comparisonTile(
+      'Recent match score',
+      recentRaw,
+      '%',
+      1.0,
+      false,
+      recentRaw ? _classBadge(recentRaw.recentAvg) : '',
+    ),
   ];
 
   if (adjustedPairs.length >= 3) {
@@ -256,14 +284,41 @@ function _placementTiles(sorted) {
       meta: `Current filtered view · n=${fieldBeaten.length}`,
       status: _contextStatus('Overall view', '◎'),
     });
-  return [averageTile, _comparisonTile('Recent placement', _recentComparison(fieldBeaten), '%')];
+  return [
+    averageTile,
+    _comparisonTile('Recent placement', _recentComparison(fieldBeaten), '%'),
+    _extremeTile('Best placement', fieldBeaten, 'best', 'Highest percentage of the relevant field beaten'),
+    _extremeTile('Worst placement', fieldBeaten, 'worst', 'Lowest percentage of the relevant field beaten'),
+  ];
 }
 
 function _nonClassifierTiles(points) {
-  const values = points.map(point => point.y);
+  const values = points.map(point => point.y).filter(Number.isFinite);
+  const recent = _recentComparison(values);
   return [
-    _comparisonTile('Recent stage performance', _recentComparison(values), '%'),
+    _comparisonTile(
+      'Recent stage performance',
+      recent,
+      '%',
+      1.0,
+      false,
+      recent ? _classBadge(recent.recentAvg) : '',
+    ),
     _overallTrendTile('Overall stage trend', values),
+    _extremeTile(
+      'Best stage performance',
+      values,
+      'best',
+      'Match-relative non-classifier stage result',
+      'equivalent',
+    ),
+    _extremeTile(
+      'Worst stage performance',
+      values,
+      'worst',
+      'Match-relative non-classifier stage result',
+      'equivalent',
+    ),
   ];
 }
 

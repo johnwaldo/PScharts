@@ -81,7 +81,21 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - Keep same-day non-classifier matches as separate chart points and tooltips while rendering their shared date label only once.
 - Regular Score Over Time uses a linear percentage scale without classification bands, inferred class labels, class colours, or warped geometry. Division % and Adjusted % are match-performance signals, not official classifications.
 - Score Over Time, Adjusted % Only, Non-Classifier Stage Trend, and Classifier vs Match Score use neutral numeric reference guides at 40%, 60%, 75%, 85%, and 95%. Keep these guides linear, theme-aware, and unlabeled beyond their numeric axis ticks; never present them as classes or class-coloured regions.
-- Use one shared performance-band mapping: D below 40%, C 40–59.999%, B 60–74.999%, A 75–84.999%, M 85–94.999%, and GM 95%+. Finite normalized higher-is-better match finish and Adjusted % values may show a compact `A equivalent`-style badge; it is always visibly unofficial. Official `clf_pct` may show a `classifier class` badge. Never badge counts, placement/field-beaten, variance, correlation, or hit-zone shares. Badges include readable text as well as a theme-safe color, wrap without overflow, and remain compact from 375px through wide layouts.
+- Use one shared performance-band mapping: D below 40%, C 40–59.999%, B
+  60–74.999%, A 75–84.999%, M 85–94.999%, and GM 95%+. Finite normalized
+  higher-is-better match finish, Adjusted %, and non-classifier stage values may
+  show a compact `≈ A Class`-style badge with a prominent code and secondary
+  `Class`; the approximation mark and accessible label keep it visibly
+  unofficial. Official `clf_pct` uses the same hierarchy without `≈` and
+  identifies itself as official to assistive technology. Never badge counts,
+  placement/field-beaten, variance, correlation, or hit-zone shares. Badges
+  include readable text as well as a theme-safe color, wrap without overflow,
+  and remain compact from 375px through wide layouts.
+- Placement Over Time and Non-Classifier Stage Trend each use four insight tiles
+  on wide screens and stack at 640px or below. Both include recent and overall
+  context plus best and worst finite values from the filtered view. Placement
+  best/worst values remain unbadged field-beaten percentages; non-classifier
+  best/worst values may use the explicitly unofficial performance shorthand.
 - A captured GM hit-factor comparison is a separate, neutrally styled performance metric. Label it as an actual GM benchmark and never use it to classify the reporting shooter or replace Adjusted %.
 - Place **Adjusted % Only** beside **Classifiers Only** as matching native-checkbox switches. Both controls expose visible keyboard focus, wrap together at narrow widths, and never create page-level overflow.
 - Adjusted-only and classifiers-only modes are mutually exclusive. Adjusted-only displays cached adjusted points without raw fallback and uses a clear multi-line empty state when fewer than two usable points exist.
