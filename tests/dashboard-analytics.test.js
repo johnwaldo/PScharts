@@ -37,6 +37,9 @@ test('dashboard exposes and synchronizes the required division affordance', () =
   assert.match(html, /Select division — required/);
   assert.match(html, /Select a division before fetching scores\./);
   assert.match(html, /\.division-control\.is-required select/);
+  assert.match(html, /\.division-control \{[\s\S]*?transform: translateY\(11px\);/);
+  assert.match(html, /\.division-control__help\[hidden\]/);
+  assert.match(html, /\.division-control select \{\s*min-height: 42px;/);
   assert.match(script, /function syncDivisionRequirement\(\)/);
   assert.match(script, /divisionControl\.classList\.toggle\('is-required', required\)/);
   assert.match(script, /syncDivisionRequirement\(\);/);
