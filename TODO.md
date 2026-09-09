@@ -12,5 +12,5 @@
 - [x] t010 normalizeStgName() + background.js regex fix — strip "Stage N:" prefix from cached stage names; tighten stage regex separator from required to optional (/[:\-–]?\s*/i); upstream v1.0/v1.1 fix pr:#12
 - [x] t011 Score Over Time chart height 220→380 — upstream v1.0 made the main chart taller for better readability pr:#12
 - [ ] t012 Adjusted % summary wording — current text "Your division's field strength closely mirrors the overall match field" is technically correct but doesn't explain why. When the gap is near zero because the shooter is competing against elite division competition (e.g. a top-5 national GM), the summary should surface that context rather than implying the fields are average. Consider surfacing the refClass/refDiv data to say something like "You're being measured against [GM/M] class competition in your division — your division % is a reliable indicator."
-- [ ] t14 Expand class-equivalent badges and four-tile performance summaries #auto-dispatch tier:standard priority:medium status:available ref:GH#125
-- [ ] t15 Make Time % the default exclusive Score Over Time mode #auto-dispatch tier:standard priority:medium status:blocked blocked-by:t14 ref:GH#126
+- [ ] t14 Expand class-equivalent badges and four-tile performance summaries #auto-dispatch tier:standard priority:medium status:blocked blocked-by:t15 ref:GH#125
+- [>] t15 Make Time % the default exclusive Score Over Time mode #auto-dispatch tier:standard priority:medium status:in-progress ref:GH#126

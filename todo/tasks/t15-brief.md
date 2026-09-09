@@ -8,7 +8,7 @@
 - [x] Discovery pass: 0 later commits / 1 foundational merged PR / 0 open PRs supersede the issue; PR #115 is prior art
 - [x] File refs verified: 7 refs checked, all present at `ca989a0`
 - [x] Tier: `tier:standard` — mode semantics are decided, but rendering, export behavior, color, and UI verification require coordinated judgment
-- [x] Seeded draft PR decision recorded: skipped — this task is intentionally ordered after t14 to prevent UI-file collisions
+- [x] Seeded draft PR decision recorded: skipped — the issue was already dispatched when enrichment began
 
 ## Origin
 
@@ -16,7 +16,7 @@
 - **Session:** OpenCode interactive session
 - **Created by:** AI interactive
 - **Parent task:** None; source issue GH#126
-- **Blocked by:** t14 / GH#125
+- **Blocked by:** None; worker dispatch was already active when enrichment began
 - **Conversation context:** Maintainer review accepted changing Time % from an optional overlay into the default exclusive Score Over Time mode with a more distinct visual treatment.
 
 ## What
@@ -50,11 +50,11 @@ This is a leaf task. The implementation PR must use `Resolves #126`.
 ## Seeded Draft PR
 
 - **Decision:** Skipped
-- **Rationale:** Ordered issue execution is safer than a seed against files that t14 will edit first.
-- **Status:** `blocked`
+- **Rationale:** The active GH#126 worker already owns implementation, so a seeded PR would collide.
+- **Status:** `not-created`
 - **Freshness evidence:** Memory, PR collision, source, test, and design checks were completed against `ca989a0`.
 - **Verification run:** `node --test tests/dashboard-summaries.test.js tests/time-percentage.test.js` passed 5/5 during review.
-- **Stale-assumption warning:** Rebase after t14 closes and re-check `dashboard.js`, `dashboard.html`, DESIGN.md, and README.md before editing.
+- **Stale-assumption warning:** The active worker must use current remote HEAD; t14 is now blocked until this issue closes.
 
 ## How (Approach)
 
@@ -156,8 +156,8 @@ git diff --check
 
 ## Dependencies
 
-- **Blocked by:** t14 / GH#125; sync this as a native GitHub blocked-by relationship before dispatch
-- **Blocks:** None
+- **Blocked by:** None
+- **Blocks:** t14 / GH#125, which remains blocked until this active worker closes GH#126
 - **External:** None
 
 ## Estimate Breakdown
