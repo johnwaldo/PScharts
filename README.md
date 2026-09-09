@@ -136,7 +136,14 @@ member requires explicit confirmation. Full match history remains in
 
 3. **Enter your member number and/or name** — type your USPSA member number (e.g. `A12345`) and/or your name as it appears on result sheets (e.g. `Smith, Jane`). At least one is required; providing both improves match accuracy.
 
-4. **Choose your division and a Fetch timeline, then click Fetch Scores** — a division is required. The timeline defaults to **6 mo** and offers **Last 1 month**, **3 mo**, **6 mo**, and **1 yr**. It limits which PractiScore matches receive score and stage requests. The extension opens each in-range match's results page, selects your division, and records your score. Progress is shown in the status bar.
+4. **Choose your division and a Fetch timeline, then click Fetch Scores** — a
+   division is required. The timeline defaults to **6 mo** and offers **Last 1
+   month**, **3 mo**, **6 mo**, and **1 yr**. It limits which PractiScore matches
+   receive score and stage requests. The extension opens each in-range match's
+   results page, selects your division, and records your score. Keep the
+   PractiScore tab open and complete any CAPTCHA or Cloudflare verification that
+   appears there; longer history pulls may ask more than once. Progress is shown
+   in the status bar.
 
 5. **Explore your data** — the summary bar shows matches found, average %, best %, field-strength adjusted average, and your USPSA classification. The **Scored Matches / All Matches** toggle below the cards switches between member-number lookup results and all name-matched results.
 

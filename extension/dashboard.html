@@ -999,6 +999,17 @@
       color: #778;
       line-height: 1.5;
     }
+    .onboarding-verification-note {
+      margin: 14px 0 2px 40px;
+      padding: 10px 12px;
+      border-left: 3px solid #f59e0b;
+      border-radius: 5px;
+      background: rgba(245,158,11,0.08);
+      color: #b8c0cf;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .onboarding-verification-note strong { color: #fbbf24; }
     .onboarding-link-btn {
       display: inline-flex;
       align-items: center;
@@ -1273,6 +1284,7 @@
       .refresh-btn,
       .export-btn,
       .delete-btn { opacity: 1; }
+      .onboarding-verification-note { margin-left: 0; }
     }
 
     /* ── CSS variables: chart primitives (read by CHART_BG/GRID_COLOR etc. in JS) ── */
@@ -1465,6 +1477,12 @@
     [data-theme="light"] .onboarding-step-desc { color: #5a6478; }
     [data-theme="light"] .onboarding-step-num { background: #2563eb; }
     [data-theme="light"] .onboarding-step-title { color: #1a1d27; }
+    [data-theme="light"] .onboarding-verification-note {
+      background: #fffbeb;
+      border-left-color: #d97706;
+      color: #78350f;
+    }
+    [data-theme="light"] .onboarding-verification-note strong { color: #92400e; }
     [data-theme="light"] .match-type-badge { background: #e0e2e8; color: #5a6478; }
     [data-theme="light"] .match-type-badge.uspsa { background: #dbeafe; color: #1d4ed8; }
   </style>
@@ -1567,6 +1585,10 @@
       </div>
     </div>
 
+  </div>
+  <div class="onboarding-verification-note" role="note">
+    <strong>Watch the PractiScore tab for verification.</strong>
+    Keep it open while scores are loading. If a CAPTCHA or Cloudflare check appears, open the tab and complete it so the fetch can continue. Longer history pulls may ask more than once.
   </div>
   <hr class="onboarding-divider">
   <div class="onboarding-optional">
