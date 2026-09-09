@@ -50,7 +50,7 @@ A Chrome extension that pulls your USPSA match results from PractiScore and disp
 
 **Adjusted %** is a field-strength correction for non-classifier stages. For each stage, the extension takes the top hit factor from every represented division, translates each result to your division's equivalent using national HHF ratios from [hitfactor.info](https://hitfactor.info), and uses the strongest normalized result as the reference. Your own division participates without conversion, so the adjusted score remains between 0% and 100% while correcting for divisions with stronger competitors.
 
-A 75% adjusted score means your performance was 75% of the strongest normalized stage result at that match after accounting for division equipment differences. Adjusted % is the better indicator of improvement over time because it accounts for the complete match field, not just your division draw. Match finish and Adjusted % can show a familiar **A equivalent**-style badge (D below 40%, C 40–59.999%, B 60–74.999%, A 75–84.999%, M 85–94.999%, GM 95%+), but that is an unofficial comparison—not a USPSA classification. Only official classifier percentages receive a classifier-class label. Classifier stages are excluded because official classifier percentages are already normalized against USPSA national division data; use **Classifiers Only** to see that official class context.
+A 75% adjusted score means your performance was 75% of the strongest normalized stage result at that match after accounting for division equipment differences. Adjusted % is the better indicator of improvement over time because it accounts for the complete match field, not just your division draw. Match finish, Adjusted %, and non-classifier stage performance can show a familiar **≈ A Class**-style badge (D below 40%, C 40–59.999%, B 60–74.999%, A 75–84.999%, M 85–94.999%, GM 95%+), but the approximation mark means it is an unofficial comparison—not a USPSA classification. Official classifier percentages use the same compact class treatment without **≈**. Classifier stages are excluded from Adjusted % because official classifier percentages are already normalized against USPSA national division data; use **Classifiers Only** to see that official class context.
 
 Where captured GM hit factors are available, the stage table separately shows **HF vs GM**: your hit factor compared with the captured median GM benchmark. This is a performance comparison, not a shooter classification. Mixed or missing benchmark data remains unavailable rather than inventing a class context.
 
@@ -162,12 +162,14 @@ Scored/All view, Last 8 setting, match checkboxes, and stage filters.
 - **Score Over Time** — last 3 match average vs the prior baseline, adjusted
   average vs paired raw results, and least-squares first-to-last trends for raw
   and adjusted percentages. **Stable** means within ±1.0 percentage point.
-- **Placement Over Time** — average field beaten and last 3 vs the prior
-  baseline. A higher field-beaten percentage is better; **Stable** means within
-  ±1.0 point.
-- **Non-Classifier Stage Trend** — last 3 vs prior and the overall
-  match-relative trend. These are comparisons with each match's top shooter,
-  not USPSA classifications.
+- **Placement Over Time** — average field beaten, last 3 vs the prior baseline,
+  and best and worst finite placement in the filtered view. A higher field-beaten
+  percentage is better; **Stable** means within ±1.0 point. Placement percentages
+  never receive class badges.
+- **Non-Classifier Stage Trend** — last 3 vs prior, the overall match-relative
+  trend, and best and worst finite stage performance in the filtered view.
+  Eligible values may show the explicitly approximate class shorthand, but these
+  remain comparisons with each match's top shooter—not USPSA classifications.
 - **Classifier vs Match Score** — recent classifier performance, best
   classifier, match average when classifiers were present, and Pearson
   correlation between paired per-match values. Correlation requires at least 3
