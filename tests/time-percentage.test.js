@@ -40,7 +40,7 @@ test('Time % is the default exclusive Score Over Time mode', () => {
 
   assert.match(html, /Time % Only <small>\(experimental\)<\/small>/);
   assert.match(script, /let showTimePct\s*=\s*true/);
-  assert.match(script, /else if \(showTimePct\) \{/);
-  assert.match(script, /\[timeSeries\]/);
+  assert.match(script, /if \(adjustedOnly \|\| showTimePct\) \{/);
+  assert.match(script, /adjustedOnly \? adjustedSeries : timeSeries/);
   assert.doesNotMatch(script, /if \(showTimePct\) scoreSeries\.push\(timeSeries\)/);
 });

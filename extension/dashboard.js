@@ -1654,48 +1654,20 @@ function renderAll() {
     })),
   };
 
-  if (adjustedOnly) {
-    document.getElementById('chartTimeTitle').textContent = 'Adjusted % Over Time';
-    if (adjPoints.length >= 2) {
-      drawMultiSeriesChart(
-        document.getElementById('chartTime'),
-        [adjustedSeries],
-        adjPoints.map(point => point.date),
-        {
-          yLabel: 'Adjusted match %', yMin: 0, yMax: 100, invertY: false,
-          trend: true, valueUnit: 'match%', preserveDuplicateDates: true,
-          showPercentageReferenceGuides: true,
-        }
-      );
+  if (adjustedOnly || showTimePct) {
+    const onlySeries = adjustedOnly ? adjustedSeries : timeSeries;
+    const onlyPoints = adjustedOnly ? adjPoints : timeSeries.points.filter(point => point.y != null);
+    const metric = adjustedOnly ? 'Adjusted %' : 'Time %';
+    document.getElementById('chartTimeTitle').textContent = `${metric} Over Time`;
+    if (onlyPoints.length >= 2) {
+      drawMultiSeriesChart(document.getElementById('chartTime'), [onlySeries], onlySeries.points.map(point => point.date), {
+        yLabel: `${adjustedOnly ? 'Adjusted' : 'Time'} match %`, yMin: 0, yMax: 100, invertY: false,
+        trend: true, valueUnit: 'match%', preserveDuplicateDates: true, showPercentageReferenceGuides: true,
+      });
     } else {
-      drawMessage(
-        document.getElementById('chartTime'),
-        'Adjusted % needs 2 usable matches.\n' +
-        'Refresh older matches for non-classifier\n' +
-        'cross-division benchmark data.'
-      );
-    }
-  } else if (showTimePct) {
-    document.getElementById('chartTimeTitle').textContent = 'Time % Over Time';
-    const timePoints = timeSeries.points.filter(point => point.y != null);
-    if (timePoints.length >= 2) {
-      drawMultiSeriesChart(
-        document.getElementById('chartTime'),
-        [timeSeries],
-        timeSeries.points.map(point => point.date),
-        {
-          yLabel: 'Time match %', yMin: 0, yMax: 100, invertY: false,
-          trend: true, valueUnit: 'match%', preserveDuplicateDates: true,
-          showPercentageReferenceGuides: true,
-        }
-      );
-    } else {
-      drawMessage(
-        document.getElementById('chartTime'),
-        'Time % needs 2 usable matches.\n' +
-        'Refresh older matches for valid\n' +
-        'combined-field raw-time benchmarks.'
-      );
+      drawMessage(document.getElementById('chartTime'), adjustedOnly
+        ? 'Adjusted % needs 2 usable matches.\nRefresh older matches for non-classifier\ncross-division benchmark data.'
+        : 'Time % needs 2 usable matches.\nRefresh older matches for valid\ncombined-field raw-time benchmarks.');
     }
   } else {
     // Add adjusted series if we have data (dashed line, distinct color)
