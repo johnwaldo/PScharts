@@ -147,6 +147,33 @@
       flex: 0 1 180px;
       cursor: pointer;
     }
+    .division-control {
+      display: grid;
+      flex: 0 1 210px;
+      gap: 4px;
+      min-width: 180px;
+    }
+    .division-control__label {
+      color: #aab3c2;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .division-control__required {
+      font-weight: 500;
+    }
+    .division-control__help {
+      color: #d9b36c;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .division-control.is-required select {
+      border: 2px solid #d9a441;
+      box-shadow: inset 0 0 0 1px rgba(217, 164, 65, 0.25);
+      font-weight: 700;
+    }
+    .division-control.is-required select:focus {
+      border-color: #f2c55c;
+    }
     .controls input:focus,
     .controls select:focus { border-color: #4a9eff; }
     .controls input::placeholder { color: #5a6070; }
@@ -1376,7 +1403,14 @@
     [data-theme="light"] .performance-badge--gm { color: #8a6900; } [data-theme="light"] .performance-badge--m { color: #9d1bb7; }
     [data-theme="light"] .performance-badge--a { color: #16733a; } [data-theme="light"] .performance-badge--b { color: #1d4ed8; }
     [data-theme="light"] .performance-badge--c { color: #a45a00; } [data-theme="light"] .performance-badge--d { color: #4f596b; }
-     [data-theme="light"] #fetchBtn:hover { box-shadow: 0 2px 10px rgba(37,99,235,0.25); }
+    [data-theme="light"] #fetchBtn:hover { box-shadow: 0 2px 10px rgba(37,99,235,0.25); }
+    [data-theme="light"] .division-control__label { color: #4f596b; }
+    [data-theme="light"] .division-control__help { color: #8a5a00; }
+    [data-theme="light"] .division-control.is-required select {
+      border-color: #a96f00;
+      box-shadow: inset 0 0 0 1px rgba(169, 111, 0, 0.2);
+    }
+    [data-theme="light"] .division-control.is-required select:focus { border-color: #7a5100; }
     [data-theme="light"] .stat-box.clickable:hover { background: #eef0f6; border-color: #2563eb; }
     [data-theme="light"] .stat-box.active-filter { border-color: #2563eb; }
     [data-theme="light"] .stat-box[data-tip]:hover::after {
@@ -1516,18 +1550,22 @@
 </header>
 
 <div class="controls">
-  <select id="divisionFilter" aria-label="Choose USPSA division" title="Choose USPSA division">
-    <option value="" disabled selected>Division</option>
-    <option value="co">Carry Optics</option>
-    <option value="lo">Limited Optics</option>
-    <option value="opn">Open</option>
-    <option value="prod">Production</option>
-    <option value="ltd">Limited</option>
-    <option value="l10">Limited 10</option>
-    <option value="pcc">PCC</option>
-    <option value="rev">Revolver</option>
-    <option value="ss">Single Stack</option>
-  </select>
+  <div id="divisionControl" class="division-control is-required">
+    <label class="division-control__label" for="divisionFilter">USPSA division <span class="division-control__required">(required)</span></label>
+    <select id="divisionFilter" required aria-describedby="divisionRequirement" aria-invalid="true" title="Choose USPSA division">
+      <option value="" disabled selected>Select division — required</option>
+      <option value="co">Carry Optics</option>
+      <option value="lo">Limited Optics</option>
+      <option value="opn">Open</option>
+      <option value="prod">Production</option>
+      <option value="ltd">Limited</option>
+      <option value="l10">Limited 10</option>
+      <option value="pcc">PCC</option>
+      <option value="rev">Revolver</option>
+      <option value="ss">Single Stack</option>
+    </select>
+    <span id="divisionRequirement" class="division-control__help">Select a division before fetching scores.</span>
+  </div>
   <input id="memberInput" type="text" placeholder="USPSA member # (e.g. A12345, optional)" />
   <input id="nameInput"   type="text" placeholder="Name (e.g. Smith, Jane)" />
   <button id="editBtn"   class="ctrl-btn">Edit</button>

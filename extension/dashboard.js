@@ -1,7 +1,5 @@
 // dashboard.js
-
 let allResults = [];
-
 // ── Size canvases to their visible CSS-pixel dimensions ───────────────────────
 function sizeCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
@@ -35,15 +33,14 @@ function scheduleDashboardResize() {
 
 window.addEventListener('resize', scheduleDashboardResize);
 document.addEventListener('DOMContentLoaded', sizeCanvases);
-
 const headerVersion = document.getElementById('headerVersion');
 const installedVersion = chrome.runtime.getManifest().version;
 headerVersion.textContent = 'Installed v' + installedVersion;
 headerVersion.setAttribute('aria-label', 'Installed extension version ' + installedVersion + '. View GitHub Releases.');
-
 const memberInput  = document.getElementById('memberInput');
 const nameInput    = document.getElementById('nameInput');
 const divisionFilter = document.getElementById('divisionFilter');
+const divisionControl = document.getElementById('divisionControl'), divisionRequirement = document.getElementById('divisionRequirement');
 const fetchTimelineSelect = document.getElementById('fetchTimeline');
 const fetchBtn     = document.getElementById('fetchBtn');
 const fullHistoryBtn = document.getElementById('fullHistoryBtn');
@@ -64,7 +61,6 @@ const last8MatchesChk = document.getElementById('last8MatchesChk');
 const last8ToggleWrap = document.getElementById('last8ToggleWrap');
 const last8StatusEl = document.getElementById('last8Status');
 const tooltipEl    = document.getElementById('tooltip');
-
 // ── Update check ─────────────────────────────────────────────────────────────
 const RELEASES_API      = 'https://api.github.com/repos/johnwaldo/hitfactorcharts/releases/latest';
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // re-check at most every 4 hours
@@ -366,6 +362,7 @@ function normalizeDivision(psDiv) {
   const key = psDivToHfi(psDiv);
   return key && DIVISION_LABELS[key] ? key : null;
 }
+function syncDivisionRequirement() { const required = !selectedDiv; divisionControl.classList.toggle('is-required', required); divisionFilter.setAttribute('aria-invalid', String(required)); divisionRequirement.hidden = !required; }
 
 function divisionLabel(psDiv) {
   const key = normalizeDivision(psDiv);
@@ -810,6 +807,7 @@ async function initializeDashboard() {
   if (d.stageOverrides && typeof d.stageOverrides === 'object') stageOverrides = d.stageOverrides;
   selectedDiv = normalizeDivision(d.selectedDivision);
   divisionFilter.value = selectedDiv || '';
+  syncDivisionRequirement();
   selectedFetchTimeline = normalizeFetchTimeline(d.fetchTimeline);
   fetchTimelineSelect.value = selectedFetchTimeline;
   last8Matches = d.last8Matches === true;
@@ -974,6 +972,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
 
 divisionFilter.addEventListener('change', () => {
   selectedDiv = normalizeDivision(divisionFilter.value);
+  syncDivisionRequirement();
   chrome.storage.local.set({ selectedDivision: selectedDiv });
   renderAll();
   renderMatchList();
@@ -991,6 +990,7 @@ async function fetchScoresFromDashboard({ fullHistory = false } = {}) {
   const memberNumber = memberInput.value.trim().toUpperCase();
   const name         = nameInput.value.trim();
   selectedDiv = normalizeDivision(divisionFilter.value);
+  syncDivisionRequirement();
   selectedFetchTimeline = normalizeFetchTimeline(fetchTimelineSelect.value);
   const fetchTimeline = resolveFetchTimeline(selectedFetchTimeline);
   if (!selectedDiv) {
