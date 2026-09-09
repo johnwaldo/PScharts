@@ -32,26 +32,35 @@ function storageArea(initial = {}) {
   };
 }
 
-async function loadBackground(initialStorage = {}) {
+async function loadBackground(initialStorage = {}, chromeOverrides = {}) {
   const local = storageArea(initialStorage);
   const noopEvent = { addListener() {}, removeListener() {} };
-  const context = vm.createContext({
-    chrome: {
-      action: { onClicked: noopEvent },
-      runtime: {
-        getManifest: () => ({ version: 'test' }),
-        getURL: value => value,
-        onMessage: noopEvent,
-      },
-      scripting: { executeScript: async () => [{ result: null }] },
-      storage: { local },
-      tabs: {
-        create: async () => ({ id: 1 }),
-        get: async () => ({ url: 'https://practiscore.com/associate/step2' }),
-        onUpdated: noopEvent,
-        remove: async () => {},
-      },
+  let actionCallback = null;
+  const chrome = {
+    action: { onClicked: { addListener(callback) { actionCallback = callback; } } },
+    runtime: {
+      getManifest: () => ({ version: 'test' }),
+      getURL: value => value,
+      onMessage: noopEvent,
     },
+    scripting: { executeScript: async () => [{ result: null }] },
+    storage: { local },
+    tabs: {
+      create: async () => ({ id: 1 }),
+      get: async () => ({ url: 'https://practiscore.com/associate/step2' }),
+      onUpdated: noopEvent,
+      remove: async () => {},
+      query: async () => [],
+      update: async () => {},
+    },
+    windows: { update: async () => {} },
+  };
+  const { tabs: tabOverrides, windows: windowOverrides, ...otherOverrides } = chromeOverrides;
+  Object.assign(chrome, otherOverrides);
+  if (tabOverrides) Object.assign(chrome.tabs, tabOverrides);
+  if (windowOverrides) Object.assign(chrome.windows, windowOverrides);
+  const context = vm.createContext({
+    chrome,
     console,
     Date,
     Map,
@@ -68,7 +77,7 @@ async function loadBackground(initialStorage = {}) {
     normalizeHistorySync, createBackup, importBackup, fetchScores, isReusableMatchCache
   };`, context);
   await context.__hfcTest.storageMigrationPromise;
-  return { context, local, api: context.__hfcTest };
+  return { context, local, api: context.__hfcTest, actionCallback };
 }
 
 const firstId = '11111111-1111-4111-8111-111111111111';
@@ -103,6 +112,61 @@ function syncMetadata(overrides = {}) {
     ...overrides,
   };
 }
+
+test('toolbar action creates one dashboard tab when none exists', async () => {
+  const created = [];
+  const { actionCallback } = await loadBackground({}, {
+    tabs: { create: async details => { created.push(details); return { id: 1 }; } },
+  });
+
+  await actionCallback();
+  assert.deepEqual(JSON.parse(JSON.stringify(created)), [{ url: 'dashboard.html' }]);
+});
+
+test('toolbar action focuses an existing dashboard tab and its window', async () => {
+  const updates = [];
+  const { actionCallback } = await loadBackground({}, {
+    tabs: {
+      query: async () => [{ id: 9, windowId: 4 }],
+      update: async (...args) => updates.push(args),
+      create: async () => assert.fail('must not create a duplicate dashboard tab'),
+    },
+    windows: { update: async (...args) => updates.push(args) },
+  });
+
+  await actionCallback();
+  assert.deepEqual(JSON.parse(JSON.stringify(updates)), [[9, { active: true }], [4, { focused: true }]]);
+});
+
+test('toolbar action retries after a stale dashboard tab and creates one replacement', async () => {
+  let queryCount = 0;
+  const created = [];
+  const { actionCallback } = await loadBackground({}, {
+    tabs: {
+      query: async () => ++queryCount === 1 ? [{ id: 9, windowId: 4 }] : [],
+      update: async () => { throw new Error('No tab with id: 9'); },
+      create: async details => { created.push(details); return { id: 10 }; },
+    },
+  });
+
+  await actionCallback();
+  assert.equal(queryCount, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(created)), [{ url: 'dashboard.html' }]);
+});
+
+test('toolbar action does not duplicate an active dashboard when its window cannot focus', async () => {
+  let created = false;
+  const { actionCallback } = await loadBackground({}, {
+    tabs: {
+      query: async () => [{ id: 9, windowId: 4 }],
+      create: async () => { created = true; },
+    },
+    windows: { update: async () => { throw new Error('No window with id: 4'); } },
+  });
+
+  await actionCallback();
+  assert.equal(created, false);
+});
 
 test('compatible complete caches migrate without losing stages or preferences', async () => {
   const { local } = await loadBackground({

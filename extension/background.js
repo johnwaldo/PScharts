@@ -25,15 +25,42 @@ const storageMigrationPromise = migrateStorage().catch(error => {
 });
 
 // ── Open dashboard tab (or focus if already open) ─────────────────────────────
-chrome.action.onClicked.addListener(async () => {
+async function openDashboard() {
   const dashUrl = chrome.runtime.getURL('dashboard.html');
-  const existing = await chrome.tabs.query({ url: dashUrl });
-  if (existing.length > 0) {
-    await chrome.tabs.update(existing[0].id, { active: true });
-    await chrome.windows.update(existing[0].windowId, { focused: true });
-  } else {
-    chrome.tabs.create({ url: dashUrl });
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const existing = await chrome.tabs.query({ url: dashUrl });
+    if (!existing.length) {
+      await chrome.tabs.create({ url: dashUrl });
+      return;
+    }
+
+    const dashboard = existing[0];
+    try {
+      await chrome.tabs.update(dashboard.id, { active: true });
+    } catch (error) {
+      // A tab or window can close between query and focus. Re-query once so a
+      // stale result does not turn the toolbar action into a silent failure.
+      console.warn('[HFC] Dashboard focus race; retrying:', error);
+      continue;
+    }
+
+    try {
+      await chrome.windows.update(dashboard.windowId, { focused: true });
+    } catch (error) {
+      // The dashboard tab is already active. Do not create a duplicate when
+      // Chrome declines to focus its window (for example, a closing window).
+      console.warn('[HFC] Dashboard window could not be focused:', error);
+    }
+    return;
   }
+
+  // The second query found only stale dashboard state. Create one replacement.
+  await chrome.tabs.create({ url: dashUrl });
+}
+
+chrome.action.onClicked.addListener(() => {
+  return openDashboard().catch(error => console.error('[HFC] Unable to open dashboard:', error));
 });
 
 // ── Message handler ───────────────────────────────────────────────────────────
