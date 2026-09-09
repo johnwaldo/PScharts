@@ -59,8 +59,12 @@ async function openDashboard() {
   await chrome.tabs.create({ url: dashUrl });
 }
 
-chrome.action.onClicked.addListener(() => {
-  return openDashboard().catch(error => console.error('[HFC] Unable to open dashboard:', error));
+chrome.action.onClicked.addListener(async () => {
+  try {
+    await openDashboard();
+  } catch (error) {
+    console.error('[HFC] Unable to open dashboard:', error);
+  }
 });
 
 // ── Message handler ───────────────────────────────────────────────────────────
