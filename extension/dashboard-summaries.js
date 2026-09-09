@@ -88,7 +88,7 @@ function _signed(value, digits = 1) {
 function _trendStatus(delta, threshold = 1.0, lowerIsBetter = false) {
   const improvement = lowerIsBetter ? -delta : delta;
   if (improvement > threshold) return { tone: 'positive', icon: '↑', label: 'Improving' };
-  if (improvement < -threshold) return { tone: 'negative', icon: '↓', label: 'Needs attention' };
+  if (improvement < -threshold) return { tone: 'negative', icon: '↓', label: 'Declining' };
   return { tone: 'neutral', icon: '→', label: 'Stable' };
 }
 
@@ -437,11 +437,11 @@ function _outcomeTiles(points, mode) {
       const average = _avg(values);
       const trend = _overallTrend(values);
       const status = trend ? _trendStatus(trend.delta, 1.0, lowerIsBetter) : null;
-      const thresholdNote = status?.label === 'Stable' ? ' · stable within ±1.0 pp' : '';
+      const thresholdNote = status?.label === 'Stable' ? ' · stable within ±1.0%' : '';
       tiles.push(_insightTile({
         label,
         value: `${average.toFixed(1)}%`,
-        comparison: trend ? `${_signed(trend.delta)} pp predicted change` : 'Trend needs at least 3 matches',
+        comparison: trend ? `${_signed(trend.delta)}% predicted change` : 'Trend needs at least 3 matches',
         meta: `Average reported hit-zone share · n=${values.length}${thresholdNote}`,
         status: status || _contextStatus('Not enough trend data', '…'),
       }));
