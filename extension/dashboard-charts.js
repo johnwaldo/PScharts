@@ -9,6 +9,15 @@ const FONT       = '11px Inter, system-ui, sans-serif';
 // Neutral reference percentages for match-performance charts. These are numeric
 // guides only; official classifier charts retain their separate class semantics.
 const USPSA_PERCENTAGE_REFERENCE_GUIDES = [40, 60, 75, 85, 95];
+// Accuracy Trend expands low-frequency reported outcomes without changing their
+// raw percentages. Values are expressed bottom-to-top as chart-height fractions.
+const ACCURACY_TREND_WARP_POINTS = Object.freeze([
+  { real: 0, visual: 0 }, { real: 5, visual: 0.30 },
+  { real: 10, visual: 0.45 }, { real: 20, visual: 0.62 },
+  { real: 40, visual: 0.84 }, { real: 50, visual: 0.90 },
+  { real: 100, visual: 1 },
+]);
+const ACCURACY_TREND_TICKS = Object.freeze([0, 1, 2, 5, 10, 20, 40, 50, 100]);
 
 function chartYAxisTicks(rawMin, rawMax, showPercentageReferenceGuides = false) {
   if (!showPercentageReferenceGuides) {
@@ -162,6 +171,14 @@ function warpPct(v, pts) {
   return 1;
 }
 
+function isValidWarpMap(pts, rawMin, rawMax) {
+  if (!Array.isArray(pts) || pts.length < 2) return false;
+  if (pts[0].real !== rawMin || pts[0].visual !== 0) return false;
+  if (pts[pts.length - 1].real !== rawMax || pts[pts.length - 1].visual !== 1) return false;
+  return pts.every((point, index) => Number.isFinite(point.real) && Number.isFinite(point.visual)
+    && (index === 0 || (point.real > pts[index - 1].real && point.visual > pts[index - 1].visual)));
+}
+
 function fmtPct(pct) {
   if (pct == null) return '—';
   return `<span style="color:#8a9bb0">${pct.toFixed(1)}%</span>`;
@@ -266,6 +283,7 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
   const {
     yLabel = '', yMin, yMax, invertY = false, trend = false, valueUnit = '%', yScale = 'linear',
     showClassBands = false, showPercentageReferenceGuides = false,
+    warpPoints = null, yTickValues = null,
     preserveDuplicateDates = false,
   } = opts;
 
@@ -279,7 +297,8 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
 
   // Build warp map for class-band-weighted Y-axis when showClassBands is active.
   // Falls back to null (linear scale) when fewer than two bands are visible.
-  const warpMap = showClassBands ? buildWarpMap(rawMin, rawMax) : null;
+  const classWarpMap = showClassBands ? buildWarpMap(rawMin, rawMax) : null;
+  const warpMap = isValidWarpMap(warpPoints, rawMin, rawMax) ? warpPoints : classWarpMap;
 
   const dateToCanvasX = (date, pointIndex = null) => {
     const idx = preserveDuplicateDates && pointIndex != null ? pointIndex : allDates.indexOf(date);
@@ -329,7 +348,8 @@ function drawMultiSeriesChart(canvas, seriesArr, allDates, opts = {}) {
     ctx,
     area,
     toY,
-    chartYAxisTicks(rawMin, rawMax, showPercentageReferenceGuides)
+    Array.isArray(yTickValues) ? yTickValues.filter(value => value >= rawMin && value <= rawMax)
+      : chartYAxisTicks(rawMin, rawMax, showPercentageReferenceGuides)
   );
 
   // Axes
@@ -852,4 +872,13 @@ function drawStackedBarChart(canvas, bars) {
     });
     canvas.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none'; });
   }
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = {
+    ACCURACY_TREND_TICKS,
+    ACCURACY_TREND_WARP_POINTS,
+    isValidWarpMap,
+    warpPct,
+  };
 }

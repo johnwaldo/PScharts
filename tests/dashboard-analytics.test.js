@@ -16,6 +16,12 @@ test('accuracy shares use valid reported-hit denominators and reject zero totals
   assert.equal(hitShares({ a: 0, c: 0, m: 0 }), null);
 });
 
+test('Accuracy Trend selects its geometry-only custom scale', () => {
+  const script = fs.readFileSync('extension/dashboard.js', 'utf8');
+  assert.match(script, /chartAccuracy[\s\S]*?warpPoints: ACCURACY_TREND_WARP_POINTS/);
+  assert.match(script, /chartAccuracy[\s\S]*?yTickValues: ACCURACY_TREND_TICKS/);
+});
+
 test('Hit Zone retains the six newest eligible records after filtering', () => {
   const records = Array.from({ length: 8 }, (_, index) => ({ date: `2026-01-0${index + 1}`, total: index === 1 ? 0 : 10 }));
   assert.deepEqual(latestEligible(records).map(record => record.date), [

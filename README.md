@@ -188,7 +188,10 @@ Scored/All view, Last 8 setting, match checkboxes, and stage filters.
   causation. Official USPSA percentages are preferred; any match-relative
   fallback is labelled.
 - **Accuracy Trend** — recent-vs-prior reported A/B/C/D/M/NS percentage shares
-  of valid reported hits. Higher A and lower B/C/D/M/NS are treated as improvement.
+  of valid reported hits. Its disclosed nonlinear geometry expands 0–5%, gives
+  values below 40% most of the chart height, and compresses values above 50%; all
+  labels, tooltips, summaries, and exports retain exact raw percentages. Higher A
+  and lower B/C/D/M/NS are treated as improvement.
 - **Hit Zone Breakdown** — average A/B/C/D/M/NS shares and their overall
   percentage-point trends. Procedurals remain outside the denominator.
 
@@ -202,7 +205,7 @@ The **Non-Classifier Stage Trend** averages your included non-classifier stage p
 
 The **Hit Zone Breakdown** uses the reported A/B/C/D/M/NS columns for included stages, after all active date, division, match-type, stage, Last 8, and match-selection filters. It then displays the six most recent eligible matches in chronological order. B appears only when a positive B count is reported. Separate M and NS source columns remain separate; a combined source column is labelled **M+NS** and is never split. Older cached stages without column-availability metadata show blanks until that match is refreshed, so an unavailable field is not presented as an authoritative zero.
 
-Accuracy Trend and hit-zone percentages use the **reported hit-zone total** as their denominator. A match with missing hit data or a zero denominator is unavailable rather than shown as 0%. Procedural penalties are disclosed but excluded. Raw counts and percentages remain unchanged in tooltips and exports; only the chart geometry is nonlinear. Cumulative raw boundaries from 0–75% occupy 0–45% of visual height, and boundaries from 75–100% occupy 45–100%, making smaller outcomes easier to distinguish while preserving order and the 100% endpoint. The chart deliberately remains a stacked bar chart: pie charts and 3D/perspective effects would distort comparisons.
+Accuracy Trend and hit-zone percentages use the **reported hit-zone total** as their denominator. A match with missing hit data or a zero denominator is unavailable rather than shown as 0%. Procedural penalties are disclosed but excluded. Raw counts and percentages remain unchanged in tooltips and exports. Accuracy Trend maps raw 0%, 5%, 10%, 20%, 40%, 50%, and 100% to 0%, 30%, 45%, 62%, 84%, 90%, and 100% of visual height; the Hit Zone chart separately maps cumulative raw boundaries from 0–75% to 0–45% of visual height and 75–100% to 45–100%. The chart deliberately remains a stacked bar chart: pie charts and 3D/perspective effects would distort comparisons.
 
 ### Filtering by date
 

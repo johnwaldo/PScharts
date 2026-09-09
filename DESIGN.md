@@ -73,6 +73,11 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
   Higher A is positive; lower B/C/D/M/NS is positive. Hit-zone tiles pair
   average shares with least-squares percentage-point trends using the same
   semantic directions.
+- Accuracy Trend uses a disclosed piecewise-linear geometry only: raw 0%, 5%,
+  10%, 20%, 40%, 50%, and 100% map to 0%, 30%, 45%, 62%, 84%, 90%, and 100%
+  of visual height. Its raw ticks are 0%, 1%, 2%, 5%, 10%, 20%, 40%, 50%, and
+  100%; tooltips, summaries, exports, trend inputs, denominators, and stored
+  records remain raw percentages. No other chart receives this warp.
 - Date ticks use measured text width and a minimum 10px gap. Keep the final date only when it does not collide with the preceding retained label.
 - Suppress labels for duplicate source dates while preserving distinct same-day data points and tooltips. If different years share the same month and day, include the year so useful dates remain distinguishable.
 - Axis labels must remain inside the canvas and readable in both themes at narrow, desktop, and wide widths.

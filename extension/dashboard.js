@@ -1877,7 +1877,7 @@ function renderAll() {
     if (accSeries.length) {
       drawMultiSeriesChart(document.getElementById('chartAccuracy'), accSeries, accDates, {
         yLabel: 'Reported hit share', yMin: 0, yMax: 100, invertY: false, trend: true, valueUnit: '%',
-        showClassBands: false,
+        showClassBands: false, warpPoints: ACCURACY_TREND_WARP_POINTS, yTickValues: ACCURACY_TREND_TICKS,
       });
     } else {
       drawMessage(document.getElementById('chartAccuracy'), 'M/NS are combined in the available source data.\nSeparate M and NS values are not estimated.');
