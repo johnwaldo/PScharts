@@ -4,16 +4,34 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
-## v1.8.0 — 2026-09-09
+## v1.8.1 — 2026-09-09
 
 ### Added
 
 - Added familiar D, C, B, A, M, and GM equivalent badges to match finish and
   Adjusted % summaries while keeping them explicitly separate from official
   USPSA classifier classifications.
-- Added an opt-in experimental Time % series that compares valid raw stage times
-  with the fastest combined-field times without applying division or power-factor
-  weighting.
+- Added best and worst context to Placement Over Time and Non-Classifier Stage
+  Trend summaries.
+
+### Changed
+
+- Time % is now the default, high-contrast Score Over Time view and remains an
+  exclusive chart mode.
+- Accuracy Trend now uses a disclosed nonlinear scale that expands small C, D,
+  M, and NS percentages without changing raw labels, summaries, or exports.
+- The required USPSA division selection now includes accessible helper text and
+  synchronized theme-safe state before scores are fetched.
+
+### Fixed
+
+- The toolbar action now recovers when a dashboard tab closes during activation
+  and avoids creating duplicate dashboards when window focus fails.
+
+## v1.8.0 — 2026-09-09
+
+### Added
+
 - Added persistent light/dark brightness and blue, dark green, bright green, or
   purple accent controls that synchronize through Chrome storage.
 - Added the installed extension version to the dashboard header so the active
