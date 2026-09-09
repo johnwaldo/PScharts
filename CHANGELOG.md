@@ -4,6 +4,34 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
+## v1.8.0 — 2026-09-09
+
+### Added
+
+- Added familiar D, C, B, A, M, and GM equivalent badges to match finish and
+  Adjusted % summaries while keeping them explicitly separate from official
+  USPSA classifier classifications.
+- Added an opt-in experimental Time % series that compares valid raw stage times
+  with the fastest combined-field times without applying division or power-factor
+  weighting.
+- Added persistent light/dark brightness and blue, dark green, bright green, or
+  purple accent controls that synchronize through Chrome storage.
+- Added the installed extension version to the dashboard header so the active
+  build can be confirmed without opening Chrome's extension settings.
+
+### Changed
+
+- Accuracy insights now report A, C, D, miss, no-shoot, and procedural outcomes
+  as percentages with explicit denominators, while retaining raw counts where
+  useful for context.
+- PractiScore onboarding now explains CAPTCHA and Cloudflare verification after
+  sign-in, including accessible recovery guidance when a fetch is interrupted.
+
+### Fixed
+
+- Dashboard size safeguards now account for the expanded theme and analytics
+  controls without weakening the existing bundle guard.
+
 ## v1.7.1 — 2026-09-08
 
 ### Added
