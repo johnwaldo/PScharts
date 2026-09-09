@@ -16,7 +16,7 @@
 - **Session:** OpenCode interactive session
 - **Created by:** AI interactive
 - **Parent task:** None; source issue GH#125
-- **Blocked by:** t15 / GH#126, which was dispatched before enrichment completed
+- **Blocked by:** None; GH#126 completed before this task became available
 - **Conversation context:** Maintainer review accepted the requested summary expansion while preserving the existing rule that field-placement percentages are not USPSA class equivalents.
 
 ## What
@@ -54,9 +54,9 @@ This is a leaf task. The implementation PR must use `Resolves #125`.
 - **Decision:** Skipped
 - **Rationale:** A complete issue and brief are sufficient; no implementation seed is needed.
 - **Status:** `not-created`
-- **Freshness evidence:** Memory, PR collision, source, test, and design checks were completed against `ca989a0`; rebase after GH#126 lands.
+- **Freshness evidence:** Memory, PR collision, source, test, and design checks were completed against `ca989a0`; GH#126 is now included in current main.
 - **Verification run:** `node --test tests/dashboard-summaries.test.js tests/time-percentage.test.js` passed 5/5 during review.
-- **Stale-assumption warning:** Rebase after GH#126 closes and re-check shared dashboard UI/docs before editing.
+- **Stale-assumption warning:** Re-check shared dashboard UI/docs if another dashboard PR lands before dispatch.
 
 ## How (Approach)
 
@@ -156,8 +156,8 @@ git diff --check
 
 ## Dependencies
 
-- **Blocked by:** t15 / GH#126, to avoid concurrent edits while its worker is active
-- **Blocks:** None
+- **Blocked by:** None; GH#126 is complete
+- **Blocks:** t16 / GH#128, which is ordered behind this overlapping dashboard work
 - **External:** None
 
 ## Estimate Breakdown
