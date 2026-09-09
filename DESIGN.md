@@ -27,6 +27,12 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 - Preserve visible keyboard focus and keyboard access for every control.
 - Do not rely on hover for required actions or information.
 - Keep motion restrained in this analytical interface; resizing and filtering should feel immediate rather than animated.
+- Place the PractiScore human-verification notice directly after onboarding
+  step 3 and before optional USPSA.org guidance. Keep it visually distinct but
+  subordinate to the numbered steps, readable in both themes, and full-width
+  on narrow screens. It must tell users to keep the PractiScore tab open and
+  complete any repeated CAPTCHA or Cloudflare checks without adding a modal,
+  animation, or new application state.
 - Insight status icons reinforce visible text and are decorative to assistive
   technology. Never communicate Improving, Stable, Needs attention,
   unavailable data, or metric basis through colour or an icon alone.
