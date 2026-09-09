@@ -241,7 +241,7 @@ let selectedDatePreset = '6m';   // analytics range; resets to six months on das
 let classificationData = null;  // data from uspsa.org/classification/[memberNumber]
 let classifiersOnly  = false;   // when true, charts show only classifier stage scores
 let adjustedOnly     = false;   // when true, Score Over Time shows only adjusted match points
-let showTimePct      = false;   // opt-in experimental raw-time comparison
+let showTimePct      = true;    // default Score Over Time mode: raw-time comparison
 let selectedFetchTimeline = '6m'; // pre-fetch request scope; independent of analytics range
 let last8Matches = false;       // post-fetch analytics limit; never truncates cached history
 let matchTypeOverrides = {};    // match_id -> manual type for otherwise unconfirmed matches
@@ -1647,7 +1647,7 @@ function renderAll() {
   };
 
   const timeSeries = {
-    label: 'Time % (experimental)', color: '#0097a7', dash: true,
+    label: 'Time % (experimental)', color: '#00d9ff', dash: true,
     points: viewSorted.map(r => ({
       date: r.date, y: computeMatchTimePct(r), label: r.match_name,
       division: r.division, overall_pct: effectiveOverallPct(r),
@@ -1675,10 +1675,31 @@ function renderAll() {
         'cross-division benchmark data.'
       );
     }
+  } else if (showTimePct) {
+    document.getElementById('chartTimeTitle').textContent = 'Time % Over Time';
+    const timePoints = timeSeries.points.filter(point => point.y != null);
+    if (timePoints.length >= 2) {
+      drawMultiSeriesChart(
+        document.getElementById('chartTime'),
+        [timeSeries],
+        timeSeries.points.map(point => point.date),
+        {
+          yLabel: 'Time match %', yMin: 0, yMax: 100, invertY: false,
+          trend: true, valueUnit: 'match%', preserveDuplicateDates: true,
+          showPercentageReferenceGuides: true,
+        }
+      );
+    } else {
+      drawMessage(
+        document.getElementById('chartTime'),
+        'Time % needs 2 usable matches.\n' +
+        'Refresh older matches for valid\n' +
+        'combined-field raw-time benchmarks.'
+      );
+    }
   } else {
     // Add adjusted series if we have data (dashed line, distinct color)
     if (adjPoints.length >= 2) scoreSeries.push(adjustedSeries);
-    if (showTimePct) scoreSeries.push(timeSeries);
     drawMultiSeriesChart(document.getElementById('chartTime'), scoreSeries, allDates, {
       yLabel: 'Match performance %', yMin: 0, yMax: 100, invertY: false,
       trend: true, valueUnit: 'match%',
