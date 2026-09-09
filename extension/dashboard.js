@@ -241,7 +241,7 @@ let selectedDatePreset = '6m';   // analytics range; resets to six months on das
 let classificationData = null;  // data from uspsa.org/classification/[memberNumber]
 let classifiersOnly  = false;   // when true, charts show only classifier stage scores
 let adjustedOnly     = false;   // when true, Score Over Time shows only adjusted match points
-let showTimePct      = false;   // opt-in experimental raw-time comparison
+let showTimePct      = true;    // default Score Over Time mode: raw-time comparison
 let selectedFetchTimeline = '6m'; // pre-fetch request scope; independent of analytics range
 let last8Matches = false;       // post-fetch analytics limit; never truncates cached history
 let matchTypeOverrides = {};    // match_id -> manual type for otherwise unconfirmed matches
@@ -1647,38 +1647,31 @@ function renderAll() {
   };
 
   const timeSeries = {
-    label: 'Time % (experimental)', color: '#0097a7', dash: true,
+    label: 'Time % (experimental)', color: '#00d9ff', dash: true,
     points: viewSorted.map(r => ({
       date: r.date, y: computeMatchTimePct(r), label: r.match_name,
       division: r.division, overall_pct: effectiveOverallPct(r),
     })),
   };
 
-  if (adjustedOnly) {
-    document.getElementById('chartTimeTitle').textContent = 'Adjusted % Over Time';
-    if (adjPoints.length >= 2) {
-      drawMultiSeriesChart(
-        document.getElementById('chartTime'),
-        [adjustedSeries],
-        adjPoints.map(point => point.date),
-        {
-          yLabel: 'Adjusted match %', yMin: 0, yMax: 100, invertY: false,
-          trend: true, valueUnit: 'match%', preserveDuplicateDates: true,
-          showPercentageReferenceGuides: true,
-        }
-      );
+  if (adjustedOnly || showTimePct) {
+    const onlySeries = adjustedOnly ? adjustedSeries : timeSeries;
+    const onlyPoints = adjustedOnly ? adjPoints : timeSeries.points.filter(point => point.y != null);
+    const metric = adjustedOnly ? 'Adjusted %' : 'Time %';
+    document.getElementById('chartTimeTitle').textContent = `${metric} Over Time`;
+    if (onlyPoints.length >= 2) {
+      drawMultiSeriesChart(document.getElementById('chartTime'), [onlySeries], onlySeries.points.map(point => point.date), {
+        yLabel: `${adjustedOnly ? 'Adjusted' : 'Time'} match %`, yMin: 0, yMax: 100, invertY: false,
+        trend: true, valueUnit: 'match%', preserveDuplicateDates: true, showPercentageReferenceGuides: true,
+      });
     } else {
-      drawMessage(
-        document.getElementById('chartTime'),
-        'Adjusted % needs 2 usable matches.\n' +
-        'Refresh older matches for non-classifier\n' +
-        'cross-division benchmark data.'
-      );
+      drawMessage(document.getElementById('chartTime'), adjustedOnly
+        ? 'Adjusted % needs 2 usable matches.\nRefresh older matches for non-classifier\ncross-division benchmark data.'
+        : 'Time % needs 2 usable matches.\nRefresh older matches for valid\ncombined-field raw-time benchmarks.');
     }
   } else {
     // Add adjusted series if we have data (dashed line, distinct color)
     if (adjPoints.length >= 2) scoreSeries.push(adjustedSeries);
-    if (showTimePct) scoreSeries.push(timeSeries);
     drawMultiSeriesChart(document.getElementById('chartTime'), scoreSeries, allDates, {
       yLabel: 'Match performance %', yMin: 0, yMax: 100, invertY: false,
       trend: true, valueUnit: 'match%',

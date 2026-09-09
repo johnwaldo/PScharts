@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const test = require('node:test');
 
 function timePct(stage) {
@@ -31,4 +32,15 @@ test('match Time % averages usable stages and is unavailable with none', () => {
     { time: 10, fastest_combined_time: 10 },
   ]), 75);
   assert.equal(matchTimePct([{ time: 0, fastest_combined_time: 10 }]), null);
+});
+
+test('Time % is the default exclusive Score Over Time mode', () => {
+  const html = fs.readFileSync('extension/dashboard.html', 'utf8');
+  const script = fs.readFileSync('extension/dashboard.js', 'utf8');
+
+  assert.match(html, /Time % Only <small>\(experimental\)<\/small>/);
+  assert.match(script, /let showTimePct\s*=\s*true/);
+  assert.match(script, /if \(adjustedOnly \|\| showTimePct\) \{/);
+  assert.match(script, /adjustedOnly \? adjustedSeries : timeSeries/);
+  assert.doesNotMatch(script, /if \(showTimePct\) scoreSeries\.push\(timeSeries\)/);
 });
