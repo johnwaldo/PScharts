@@ -26,6 +26,10 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 
 - Preserve visible keyboard focus and keyboard access for every control.
 - Do not rely on hover for required actions or information.
+- Before a first fetch, the USPSA division control must show visible required text,
+  a theme-safe border/weight treatment, and native required state. Clear that
+  treatment when a valid saved or newly selected division is active; never use
+  colour or an icon as the only required-state cue.
 - Keep motion restrained in this analytical interface; resizing and filtering should feel immediate rather than animated.
 - Place the PractiScore human-verification notice directly after onboarding
   step 3 and before optional USPSA.org guidance. Keep it visually distinct but
@@ -101,7 +105,7 @@ Hit Factor Charts is a data-dense browser dashboard. Preserve the existing Inter
 
 ## Fetch timeline
 
-- Require a named USPSA division before **Fetch Scores** can start. Use a non-selectable **Division** placeholder instead of an aggregate view, and preserve the selected division locally.
+- Require a named USPSA division before **Fetch Scores** can start. Use a non-selectable **Select division — required** placeholder instead of an aggregate view, and preserve the selected division locally.
 - Place the labelled native Fetch timeline select immediately before **Fetch Scores**. Use the same four labels as the analytics presets, default to **6 mo**, and persist the latest selection locally. Normalize legacy unsupported timeline values to **6 mo**.
 - Fetch timeline controls pre-fetch request scope; analytics presets independently filter cached data. Keep that distinction explicit in status and documentation.
 - The current visible select value is the next fetch scope. Changing it alone makes no request.

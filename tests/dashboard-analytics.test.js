@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const test = require('node:test');
 
 function hitShares(hits) {
@@ -20,4 +21,17 @@ test('Hit Zone retains the six newest eligible records after filtering', () => {
   assert.deepEqual(latestEligible(records).map(record => record.date), [
     '2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08',
   ]);
+});
+
+test('dashboard exposes and synchronizes the required division affordance', () => {
+  const html = fs.readFileSync('extension/dashboard.html', 'utf8');
+  const script = fs.readFileSync('extension/dashboard.js', 'utf8');
+
+  assert.match(html, /<select id="divisionFilter" required aria-describedby="divisionRequirement" aria-invalid="true"/);
+  assert.match(html, /Select division — required/);
+  assert.match(html, /Select a division before fetching scores\./);
+  assert.match(html, /\.division-control\.is-required select/);
+  assert.match(script, /function syncDivisionRequirement\(\)/);
+  assert.match(script, /divisionControl\.classList\.toggle\('is-required', required\)/);
+  assert.match(script, /syncDivisionRequirement\(\);/);
 });
