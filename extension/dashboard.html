@@ -152,6 +152,7 @@
       flex: 0 1 210px;
       gap: 4px;
       min-width: 180px;
+      transform: translateY(11px);
     }
     .division-control__label {
       color: #aab3c2;
@@ -165,6 +166,15 @@
       color: #d9b36c;
       font-size: 12px;
       font-weight: 600;
+    }
+    /* Preserve the help row after a selection so the select stays aligned with
+       adjacent controls in both required and valid states. */
+    .division-control__help[hidden] {
+      display: block;
+      visibility: hidden;
+    }
+    .division-control select {
+      min-height: 42px;
     }
     .division-control.is-required select {
       border: 2px solid #d9a441;
