@@ -240,8 +240,9 @@ let selectedDiv       = null;     // canonical division key (null = no selection
 let selectedDatePreset = '6m';   // analytics range; resets to six months on dashboard load
 let classificationData = null;  // data from uspsa.org/classification/[memberNumber]
 let classifiersOnly  = false;   // when true, charts show only classifier stage scores
-let adjustedOnly     = false;   // when true, Score Over Time shows only adjusted match points
-let showTimePct      = true;    // default Score Over Time mode: raw-time comparison
+let showDivisionPct  = true;    // normal Score Over Time series visibility
+let showAdjustedPct  = true;    // normal Score Over Time series visibility
+let showTimePct      = true;    // normal Score Over Time series visibility
 let selectedFetchTimeline = '6m'; // pre-fetch request scope; independent of analytics range
 let last8Matches = false;       // post-fetch analytics limit; never truncates cached history
 let matchTypeOverrides = {};    // match_id -> manual type for otherwise unconfirmed matches
@@ -910,8 +911,6 @@ function switchView(view) {
   document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   if (view !== 'ranked') {
     classifiersOnly = false;
-    adjustedOnly = false;
-    showTimePct = false;
   }
   syncChartModeControls();
 }
@@ -919,7 +918,8 @@ function switchView(view) {
 function syncChartModeControls() {
   const modes = [
     ['classifiersOnlyChk', 'classifiersToggleWrap', classifiersOnly],
-    ['adjustedOnlyChk', 'adjustedToggleWrap', adjustedOnly],
+    ['divisionPctChk', 'divisionToggleWrap', showDivisionPct],
+    ['adjustedPctChk', 'adjustedToggleWrap', showAdjustedPct],
     ['timePctChk', 'timePctToggleWrap', showTimePct],
   ];
   modes.forEach(([inputId, wrapId, active]) => {
@@ -933,16 +933,15 @@ function syncChartModeControls() {
 function setChartMode(mode, enabled) {
   if (mode === 'classifiers') {
     classifiersOnly = enabled;
-    if (enabled) adjustedOnly = false;
-    if (enabled) showTimePct = false;
+  } else if (mode === 'division') {
+    showDivisionPct = enabled;
+    classifiersOnly = false;
   } else if (mode === 'adjusted') {
-    adjustedOnly = enabled;
-    if (enabled) classifiersOnly = false;
-    if (enabled) showTimePct = false;
+    showAdjustedPct = enabled;
+    classifiersOnly = false;
   } else {
     showTimePct = enabled;
-    if (enabled) classifiersOnly = false;
-    if (enabled) adjustedOnly = false;
+    classifiersOnly = false;
   }
   syncChartModeControls();
   renderAll();
@@ -959,7 +958,10 @@ document.getElementById('classifiersOnlyChk').addEventListener('change', e => {
   setChartMode('classifiers', e.target.checked);
 });
 
-document.getElementById('adjustedOnlyChk').addEventListener('change', e => {
+document.getElementById('divisionPctChk').addEventListener('change', e => {
+  setChartMode('division', e.target.checked);
+});
+document.getElementById('adjustedPctChk').addEventListener('change', e => {
   setChartMode('adjusted', e.target.checked);
 });
 document.getElementById('timePctChk').addEventListener('change', e => {
@@ -1332,8 +1334,6 @@ function renderAll() {
     document.getElementById('statAdjAvgBox').style.display = 'none';
     document.getElementById('chartTimeTitle').textContent = classifiersOnly
       ? 'Classifier Scores Over Time'
-      : adjustedOnly
-      ? 'Adjusted % Over Time'
       : 'Score Over Time';
     renderClassBox(selectedDiv);
     return;
@@ -1360,8 +1360,6 @@ function renderAll() {
     document.getElementById('statAdjAvgBox').style.display = 'none';
     document.getElementById('chartTimeTitle').textContent = classifiersOnly
       ? 'Classifier Scores Over Time'
-      : adjustedOnly
-      ? 'Adjusted % Over Time'
       : 'Score Over Time';
     renderClassBox(selectedDiv);
     return;
@@ -1654,29 +1652,32 @@ function renderAll() {
     })),
   };
 
-  if (adjustedOnly || showTimePct) {
-    const onlySeries = adjustedOnly ? adjustedSeries : timeSeries;
-    const onlyPoints = adjustedOnly ? adjPoints : timeSeries.points.filter(point => point.y != null);
-    const metric = adjustedOnly ? 'Adjusted %' : 'Time %';
-    document.getElementById('chartTimeTitle').textContent = `${metric} Over Time`;
-    if (onlyPoints.length >= 2) {
-      drawMultiSeriesChart(document.getElementById('chartTime'), [onlySeries], onlySeries.points.map(point => point.date), {
-        yLabel: `${adjustedOnly ? 'Adjusted' : 'Time'} match %`, yMin: 0, yMax: 100, invertY: false,
-        trend: true, valueUnit: 'match%', preserveDuplicateDates: true, showPercentageReferenceGuides: true,
-      });
-    } else {
-      drawMessage(document.getElementById('chartTime'), adjustedOnly
-        ? 'Adjusted % needs 2 usable matches.\nRefresh older matches for non-classifier\ncross-division benchmark data.'
-        : 'Time % needs 2 usable matches.\nRefresh older matches for valid\ncombined-field raw-time benchmarks.');
-    }
-  } else {
-    // Add adjusted series if we have data (dashed line, distinct color)
-    if (adjPoints.length >= 2) scoreSeries.push(adjustedSeries);
-    drawMultiSeriesChart(document.getElementById('chartTime'), scoreSeries, allDates, {
+  const selectedSeries = [];
+  const unavailableMetrics = [];
+  if (showDivisionPct) {
+    const divisionSeries = scoreSeries.filter(series => series.points.filter(point => point.y != null).length >= 2);
+    if (divisionSeries.length) selectedSeries.push(...divisionSeries);
+    else unavailableMetrics.push('Division performance needs 2 usable matches.');
+  }
+  if (showAdjustedPct) {
+    if (adjPoints.length >= 2) selectedSeries.push(adjustedSeries);
+    else unavailableMetrics.push('Adjusted % needs 2 usable matches with non-classifier cross-division benchmarks.');
+  }
+  if (showTimePct) {
+    if (timeSeries.points.filter(point => point.y != null).length >= 2) selectedSeries.push(timeSeries);
+    else unavailableMetrics.push('Time % needs 2 usable matches with valid combined-field raw-time benchmarks.');
+  }
+
+  if (selectedSeries.length) {
+    drawMultiSeriesChart(document.getElementById('chartTime'), selectedSeries, allDates, {
       yLabel: 'Match performance %', yMin: 0, yMax: 100, invertY: false,
-      trend: true, valueUnit: 'match%',
+      trend: true, valueUnit: 'match%', preserveDuplicateDates: true,
       showPercentageReferenceGuides: true,
     });
+  } else {
+    drawMessage(document.getElementById('chartTime'), unavailableMetrics.length
+      ? unavailableMetrics.join('\n')
+      : 'Select a Score Over Time metric to display.');
   }
 
   const placeSeries = Object.entries(byDiv).map(([div, matches], i) => {
