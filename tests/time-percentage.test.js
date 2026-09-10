@@ -34,13 +34,20 @@ test('match Time % averages usable stages and is unavailable with none', () => {
   assert.equal(matchTimePct([{ time: 0, fastest_combined_time: 10 }]), null);
 });
 
-test('Time % is the default exclusive Score Over Time mode', () => {
+test('Score Over Time defaults to independently visible performance series', () => {
   const html = fs.readFileSync('extension/dashboard.html', 'utf8');
   const script = fs.readFileSync('extension/dashboard.js', 'utf8');
 
-  assert.match(html, /Time % Only <small>\(experimental\)<\/small>/);
+  assert.match(html, /Division performance/);
+  assert.match(html, /Adjusted %<\/span>/);
+  assert.match(html, /Time % <small>\(experimental\)<\/small>/);
+  assert.doesNotMatch(html, /Adjusted % Only|Time % Only/);
+  assert.match(script, /let showDivisionPct\s*=\s*true/);
+  assert.match(script, /let showAdjustedPct\s*=\s*true/);
   assert.match(script, /let showTimePct\s*=\s*true/);
-  assert.match(script, /if \(adjustedOnly \|\| showTimePct\) \{/);
-  assert.match(script, /adjustedOnly \? adjustedSeries : timeSeries/);
-  assert.doesNotMatch(script, /if \(showTimePct\) scoreSeries\.push\(timeSeries\)/);
+  assert.match(script, /if \(showAdjustedPct\) \{/);
+  assert.match(script, /if \(showTimePct\) \{/);
+  assert.match(script, /selectedSeries\.push\(adjustedSeries\)/);
+  assert.match(script, /selectedSeries\.push\(timeSeries\)/);
+  assert.doesNotMatch(script, /adjustedOnly/);
 });
