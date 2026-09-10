@@ -4,6 +4,27 @@ All notable user-facing changes are documented here. Update this file before pub
 
 ## Unreleased
 
+## v1.8.2 — 2026-09-09
+
+### Added
+
+- Score Over Time now displays Division performance, Adjusted %, and experimental
+  Time % together when data is available. Each series can be shown alone or in
+  combination; Classifiers Only remains a distinct alternate view.
+
+### Changed
+
+- Accuracy Trend summaries now spell out percentage-point changes instead of
+  using the `pp` abbreviation, while preserving existing trend calculations and
+  directions.
+
+### Fixed
+
+- Aligned the required division selector with the first-screen controls across
+  responsive layouts while retaining its accessible required-state treatment.
+- Preserved the Vivaldi toolbar action while its asynchronous click handling
+  opens or focuses the dashboard.
+
 ## v1.8.1 — 2026-09-09
 
 ### Added
